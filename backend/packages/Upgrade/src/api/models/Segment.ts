@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { Column, Entity, JoinTable, ManyToMany, OneToMany, OneToOne, PrimaryColumn } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany, ManyToOne, OneToMany, OneToOne, PrimaryColumn } from 'typeorm';
 import { SEGMENT_TYPE } from 'upgrade_types';
 import { BaseModel } from './base/BaseModel';
 import { ExperimentSegmentExclusion } from './ExperimentSegmentExclusion';
@@ -8,6 +8,7 @@ import { GroupForSegment } from './GroupForSegment';
 import { IndividualForSegment } from './IndividualForSegment';
 import { FeatureFlagSegmentInclusion } from './FeatureFlagSegmentInclusion';
 import { FeatureFlagSegmentExclusion } from './FeatureFlagSegmentExclusion';
+import { Organization } from './Organization';
 
 @Entity()
 export class Segment extends BaseModel {
@@ -59,6 +60,9 @@ export class Segment extends BaseModel {
     onDelete: 'CASCADE',
   })
   public subSegments: Segment[];
+
+  @ManyToOne(() => Organization, (organization) => organization.segment)
+  public organization: Organization;
 
   @OneToOne(() => ExperimentSegmentInclusion, (experimentSegmentInclusion) => experimentSegmentInclusion.segment)
   @Type(() => ExperimentSegmentInclusion)

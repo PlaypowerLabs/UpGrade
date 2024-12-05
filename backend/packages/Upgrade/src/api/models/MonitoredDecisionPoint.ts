@@ -3,6 +3,7 @@ import { Entity, PrimaryColumn, Column, ManyToOne, OneToMany, Index } from 'type
 import { BaseModel } from './base/BaseModel';
 import { ExperimentUser } from './ExperimentUser';
 import { MonitoredDecisionPointLog } from './MonitoredDecisionPointLog';
+import { Organization } from './Organization';
 
 @Entity()
 export class MonitoredDecisionPoint extends BaseModel {
@@ -35,4 +36,7 @@ export class MonitoredDecisionPoint extends BaseModel {
 
   @OneToMany(() => MonitoredDecisionPointLog, (monitoredPointLog) => monitoredPointLog.monitoredDecisionPoint)
   public monitoredPointLogs: MonitoredDecisionPointLog[];
+
+  @ManyToOne(() => Organization, (organization) => organization.monitoredDecisionPoint)
+  public organization: Organization;
 }

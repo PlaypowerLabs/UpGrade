@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryColumn, OneToMany, Unique } from 'typeorm';
+import { Column, Entity, PrimaryColumn, OneToMany, Unique, ManyToOne } from 'typeorm';
 import { IsNotEmpty } from 'class-validator';
 import { BaseModel } from './base/BaseModel';
 import { Type } from 'class-transformer';
@@ -6,6 +6,7 @@ import { FEATURE_FLAG_STATUS, FILTER_MODE } from 'upgrade_types';
 import { FeatureFlagSegmentInclusion } from './FeatureFlagSegmentInclusion';
 import { FeatureFlagSegmentExclusion } from './FeatureFlagSegmentExclusion';
 import { FeatureFlagExposure } from './FeatureFlagExposure';
+import { Organization } from './Organization';
 @Entity()
 @Unique(['key', 'context'])
 export class FeatureFlag extends BaseModel {
@@ -19,7 +20,9 @@ export class FeatureFlag extends BaseModel {
   @Column('text')
   public key: string;
 
-  @Column()
+  @Column({
+    nullable: true,
+  })
   public description: string;
 
   @Column('text', { array: true })
@@ -43,6 +46,9 @@ export class FeatureFlag extends BaseModel {
     default: FILTER_MODE.EXCLUDE_ALL,
   })
   public filterMode: FILTER_MODE;
+
+  @ManyToOne(() => Organization, (organization) => organization.featureFlag)
+  public organization: Organization;
 
   @OneToMany(
     () => FeatureFlagSegmentInclusion,

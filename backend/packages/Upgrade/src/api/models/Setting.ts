@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne } from 'typeorm';
 import { BaseModel } from './base/BaseModel';
+import { Organization } from './Organization';
 
 @Entity()
 export class Setting extends BaseModel {
@@ -11,4 +12,7 @@ export class Setting extends BaseModel {
 
   @Column()
   public toFilterMetric: boolean;
+
+  @OneToOne(() => Organization, (organization) => organization.setting)
+  public organization: Organization;
 }

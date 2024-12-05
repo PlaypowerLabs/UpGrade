@@ -4,6 +4,7 @@ import { IsNotEmpty } from 'class-validator';
 import { Log } from './Log';
 import { Type } from 'class-transformer';
 import { UserStratificationFactor } from './UserStratificationFactor';
+import { Organization } from './Organization';
 
 @Entity()
 export class ExperimentUser extends BaseModel {
@@ -29,4 +30,7 @@ export class ExperimentUser extends BaseModel {
   @OneToMany(() => UserStratificationFactor, (userStratificationFactor) => userStratificationFactor.user)
   @Type(() => UserStratificationFactor)
   public userStratificationFactor: UserStratificationFactor[];
+
+  @ManyToOne(() => Organization, (organization) => organization.experimentUser)
+  public organization: Organization;
 }
