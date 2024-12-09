@@ -15,7 +15,11 @@ import {
   SERVER_ERROR,
   IExperimentEnrollmentStats,
 } from 'upgrade_types';
-import { AnalyticsRepository, CSVExportDataRow, ExperimentDetailsForCSVData } from '../repositories/AnalyticsRepository';
+import {
+  AnalyticsRepository,
+  CSVExportDataRow,
+  ExperimentDetailsForCSVData,
+} from '../repositories/AnalyticsRepository';
 import { Experiment } from '../models/Experiment';
 import ObjectsToCsv from 'objects-to-csv';
 import fs from 'fs';
@@ -178,7 +182,8 @@ export class AnalyticsService {
       const userRepository: UserRepository = Container.getCustomRepository(UserRepository, 'export');
       const user = await userRepository.findOneBy({ email });
 
-      const experimentDetails: ExperimentDetailsForCSVData[] = await this.experimentService.getExperimentDetailsForCSVDataExport(experimentId);
+      const experimentDetails: ExperimentDetailsForCSVData[] =
+        await this.experimentService.getExperimentDetailsForCSVDataExport(experimentId);
       if (!experimentDetails || experimentDetails.length === 0) {
         throw new HttpError(404, `Experiment not found for id: ${experimentId}`);
       }
@@ -370,13 +375,11 @@ export class AnalyticsService {
           Stratification: stratification,
           Site: row.site,
           Target: row.target,
-          ExcludeifReached: excludeIfReached,
+          ExcludeIfReached: excludeIfReached,
           ConditionName: row.conditionName,
           Payload: row.payload ? row.payload : row.conditionName,
           PostRule: postRule,
-          EnrollmentStartDate: row.enrollmentStartDate
-            ? new Date(row.enrollmentStartDate).toISOString()
-            : 'NA',
+          EnrollmentStartDate: row.enrollmentStartDate ? new Date(row.enrollmentStartDate).toISOString() : 'NA',
           EnrollmentCompleteDate: row.enrollmentCompleteDate
             ? new Date(row.enrollmentCompleteDate).toISOString()
             : 'NA',
@@ -422,7 +425,7 @@ export class AnalyticsService {
             Stratification: '',
             Site: '',
             Target: '',
-            ExcludeifReached: '',
+            ExcludeIfReached: '',
             ConditionName: '',
             Payload: '',
             PostRule: '',

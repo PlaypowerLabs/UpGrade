@@ -17,16 +17,6 @@ export class Log extends BaseModel {
   @Column('jsonb')
   public data: any;
 
-  @Column({
-    nullable: true,
-  })
-  public experimentId: string;
-
-  @Column({
-    nullable: true,
-  })
-  public featureFlagId: string;
-
   @ManyToMany(() => Metric, (metric) => metric.logs)
   public metrics: Metric[];
 

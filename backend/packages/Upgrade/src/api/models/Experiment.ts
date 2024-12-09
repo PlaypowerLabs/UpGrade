@@ -28,6 +28,7 @@ import { ConditionPayload } from 'src/api/models/ConditionPayload';
 import { Factor } from './Factor';
 import { StratificationFactor } from './StratificationFactor';
 import { Organization } from './Organization';
+import { ExperimentAuditLog } from './ExperimentAuditLog';
 
 export {
   EXPERIMENT_SEARCH_KEY,
@@ -175,4 +176,8 @@ export class Experiment extends BaseModel {
 
   @ManyToOne(() => Organization, (organization) => organization.experiment)
   public organization: Organization;
+
+  @OneToMany(() => ExperimentAuditLog, (auditLog) => auditLog.experiment)
+  @Type(() => ExperimentAuditLog)
+  public auditLogs: ExperimentAuditLog[];
 }

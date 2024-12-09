@@ -7,6 +7,8 @@ import { FeatureFlagSegmentInclusion } from './FeatureFlagSegmentInclusion';
 import { FeatureFlagSegmentExclusion } from './FeatureFlagSegmentExclusion';
 import { FeatureFlagExposure } from './FeatureFlagExposure';
 import { Organization } from './Organization';
+import { ExperimentAuditLog } from './ExperimentAuditLog';
+
 @Entity()
 @Unique(['key', 'context'])
 export class FeatureFlag extends BaseModel {
@@ -66,4 +68,8 @@ export class FeatureFlag extends BaseModel {
 
   @OneToMany(() => FeatureFlagExposure, (featureFlagExposure) => featureFlagExposure.featureFlag)
   public featureFlagExposures: FeatureFlagExposure[];
+
+  @OneToMany(() => ExperimentAuditLog, (auditLog) => auditLog.featureFlag)
+  @Type(() => ExperimentAuditLog)
+  public auditLogs: ExperimentAuditLog[];
 }
