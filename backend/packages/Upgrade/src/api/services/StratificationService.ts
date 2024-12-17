@@ -1,3 +1,4 @@
+import { Organization } from './../models/Organization';
 import { Service } from 'typedi';
 import { InjectDataSource, InjectRepository } from '../../typeorm-typedi-extensions';
 import { UpgradeLogger } from '../../lib/logger/UpgradeLogger';
@@ -39,7 +40,7 @@ export class StratificationService {
     return Object.values(formattedResults);
   }
 
-  public async getAllStratification(logger: UpgradeLogger): Promise<FactorStrata[]> {
+  public async getAllStratification(logger: UpgradeLogger, organizationId: string): Promise<FactorStrata[]> {
     logger.info({ message: `Find all stratification` });
 
     const queryBuilder = await this.stratificationFactorRepository
@@ -52,6 +53,8 @@ export class StratificationService {
       ])
       .innerJoin('sf.userStratificationFactor', 'usf')
       .leftJoin('sf.experiment', 'experiments') // Left join with the Experiment entity
+      .leftJoin('sf.organization', 'organization') // Left Join with the Organization entity
+      .where('organization.id = :organizationId', { organizationId }) // Filter by organizationId
       .groupBy('sf.stratificationFactorName, value')
       .getRawMany();
 
@@ -101,7 +104,11 @@ export class StratificationService {
     return await this.stratificationFactorRepository.deleteStratificationFactorByName(factor, logger);
   }
 
-  public async insertStratification(csvData: string, logger: UpgradeLogger): Promise<UserStratificationFactor[]> {
+  public async insertStratification(
+    csvData: string,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<UserStratificationFactor[]> {
     const rows = csvData.replace(/"/g, '').split('\n');
     const columnNames = rows[0].split(',');
 
@@ -171,15 +178,16 @@ export class StratificationService {
         .map((user) => {
           return {
             id: user.userId,
+            organization: organization,
           };
         });
       const usersDocToSave = [...new Set(usersRemaining)];
 
-      const stratificationFactorDetials = await transactionalEntityManager.getRepository(StratificationFactor).find({
+      const stratificationFactorDetails = await transactionalEntityManager.getRepository(StratificationFactor).find({
         where: { stratificationFactorName: In(userStratificationData.map((factorData) => factorData.factor)) },
       });
       const stratificationFactorRemaining = userStratificationData.filter((factorData) => {
-        return !stratificationFactorDetials.some((factor) => factor.stratificationFactorName === factorData.factor);
+        return !stratificationFactorDetails.some((factor) => factor.stratificationFactorName === factorData.factor);
       });
 
       // create a SET of stratificationFactors not found in DB
@@ -188,6 +196,7 @@ export class StratificationService {
       ].map((factor) => {
         return {
           stratificationFactorName: factor,
+          organization: organization,
         };
       });
 
@@ -206,13 +215,13 @@ export class StratificationService {
       }
 
       userDetails.push(...userDocCreated);
-      stratificationFactorDetials.push(...stratificationFactorDocCreated);
+      stratificationFactorDetails.push(...stratificationFactorDocCreated);
 
       const userStratificationDataToSave: Partial<UserStratificationFactor>[] = userStratificationData
         .filter((data) => data.value != null)
         .map((data) => {
           const userFound: ExperimentUser = userDetails.find((user) => user.id === data.userId);
-          const stratificationFactorFound: StratificationFactor = stratificationFactorDetials.find(
+          const stratificationFactorFound: StratificationFactor = stratificationFactorDetails.find(
             (factor) => factor.stratificationFactorName === data.factor
           );
           return {
@@ -232,11 +241,12 @@ export class StratificationService {
 
   public async insertStratificationFiles(
     files: UploadedFilesValidator[],
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<UserStratificationFactor[][]> {
     return await Promise.all(
       files.map(async (fileObj) => {
-        return await this.insertStratification(fileObj.file, logger);
+        return await this.insertStratification(fileObj.file, logger, organization);
       })
     );
   }

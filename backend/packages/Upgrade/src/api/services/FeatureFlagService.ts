@@ -54,6 +54,7 @@ import { diffString } from 'json-diff';
 import { SegmentRepository } from '../repositories/SegmentRepository';
 import { ExperimentAuditLog } from '../models/ExperimentAuditLog';
 import { NotFoundException } from '@nestjs/common/exceptions';
+import { Organization } from '../models/Organization';
 
 @Service()
 export class FeatureFlagService {
@@ -68,9 +69,11 @@ export class FeatureFlagService {
     public segmentService: SegmentService
   ) {}
 
-  public find(logger: UpgradeLogger): Promise<FeatureFlag[]> {
-    logger.info({ message: 'Get all feature flags' });
-    return this.featureFlagRepository.find();
+  public find(logger: UpgradeLogger, organizationId: string): Promise<FeatureFlag[]> {
+    logger.info({ message: 'Get all feature flags filtered by organization' });
+    return this.featureFlagRepository.find({
+      where: { organization: { id: organizationId } },
+    });
   }
 
   public async getKeys(
@@ -138,7 +141,8 @@ export class FeatureFlagService {
   public async create(
     flagDTO: FeatureFlagValidation,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<FeatureFlag> {
     logger.info({ message: 'Create a new feature flag', details: flagDTO });
     const result = await this.featureFlagRepository.validateUniqueKey(flagDTO);
@@ -150,7 +154,7 @@ export class FeatureFlagService {
       throw error;
     }
 
-    return this.addFeatureFlagInDB(this.featureFlagValidatorToFlag(flagDTO), currentUser, logger);
+    return this.addFeatureFlagInDB(this.featureFlagValidatorToFlag(flagDTO), currentUser, logger, organization);
   }
 
   public getTotalCount(): Promise<number> {
@@ -161,55 +165,52 @@ export class FeatureFlagService {
     skip: number,
     take: number,
     logger: UpgradeLogger,
+    organizationId: string, // Add organizationId parameter
     searchParams?: IFeatureFlagSearchParams,
     sortParams?: IFeatureFlagSortParams
   ): Promise<FeatureFlag[]> {
     logger.info({ message: 'Find paginated Feature flags' });
 
-    let queryBuilder = this.featureFlagRepository.createQueryBuilder('feature_flag');
+    // Start query builder with organization filter
+    let queryBuilder = this.featureFlagRepository
+      .createQueryBuilder('feature_flag')
+      .leftJoinAndSelect('feature_flag.organization', 'organization') // Join with organization
+      .where('organization.id = :organizationId', { organizationId }) // Add organization filter
+      .offset(skip)
+      .limit(take);
+
     if (searchParams) {
-      const customSearchString = searchParams.string.split(' ').join(`:*&`);
-      // add search query
+      const customSearchString = searchParams.string.split(' ').join(':* &');
       const postgresSearchString = this.postgresSearchString(searchParams.key);
       queryBuilder = queryBuilder
-        .addSelect(`ts_rank_cd(to_tsvector('english',${postgresSearchString}), to_tsquery(:query))`, 'rank')
+        .addSelect(`ts_rank_cd(to_tsvector('english', ${postgresSearchString}), to_tsquery(:query))`, 'rank')
         .addOrderBy('rank', 'DESC')
         .setParameter('query', `${customSearchString}:*`);
     }
+
     if (sortParams) {
       queryBuilder = queryBuilder.addOrderBy(`feature_flag.${sortParams.key}`, sortParams.sortAs);
     }
 
-    queryBuilder = queryBuilder.offset(skip).limit(take);
-
-    // TODO: the type of queryBuilder.getMany() is Promise<FeatureFlag[]>
-    // However, the above query returns Promise<(Omit<FeatureFlag, 'featureFlagExposures'> & { featureFlagExposures: number })[]>
-    // This can be fixed by using a @VirtualColumn in the FeatureFlag entity, when we are on TypeORM 0.3
     const featureFlagsWithExposures = await queryBuilder
       .loadRelationCountAndMap('feature_flag.featureFlagExposures', 'feature_flag.featureFlagExposures')
       .getMany();
 
-    // Get the feature flag ids
     const featureFlagIds = featureFlagsWithExposures.map(({ id }) => id);
 
-    // Get the relevant segment inclusion documents
     const featureFlagWithInclusionSegments = await this.featureFlagRepository.find({
       select: ['id', 'featureFlagSegmentInclusion'],
       where: { id: In(featureFlagIds) },
       relations: ['featureFlagSegmentInclusion'],
     });
 
-    // Add the inclusion documents to the featureFlagsWithExposures
     return featureFlagsWithExposures.map((featureFlag) => {
-      // Find the matching featureFlagSegmentInclusion for the current item
       const inclusionSegment = featureFlagWithInclusionSegments.find(
         ({ id }) => id === featureFlag.id
       )?.featureFlagSegmentInclusion;
 
-      // Construct the new object with conditional properties
       return {
         ...featureFlag,
-        // Only include featureFlagSegmentInclusion if inclusionSegment is defined and not empty
         ...(inclusionSegment && inclusionSegment.length > 0 ? { featureFlagSegmentInclusion: inclusionSegment } : {}),
       };
     });
@@ -347,9 +348,11 @@ export class FeatureFlagService {
     flag: FeatureFlag,
     user: UserDTO,
     logger: UpgradeLogger,
+    organization: Organization,
     entityManager?: EntityManager
   ): Promise<FeatureFlag> {
     flag.id = uuid();
+    flag.organization = organization;
     // saving feature flag doc
 
     const executeTransaction = async (manager: EntityManager): Promise<FeatureFlag> => {
@@ -836,7 +839,8 @@ export class FeatureFlagService {
   public async importFeatureFlags(
     featureFlagFiles: IFeatureFlagFile[],
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<IImportError[]> {
     logger.info({ message: 'Import feature flags' });
     const validatedFlags = await this.validateImportFeatureFlags(featureFlagFiles, logger);
@@ -911,6 +915,7 @@ export class FeatureFlagService {
           this.featureFlagValidatorToFlag(featureFlag),
           currentUser,
           logger,
+          organization,
           transactionalEntityManager
         );
 

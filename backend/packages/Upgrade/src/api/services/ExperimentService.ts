@@ -1,3 +1,4 @@
+import { Organization } from './../models/Organization';
 /* eslint-disable no-var */
 import { GroupExclusion } from './../models/GroupExclusion';
 import { ErrorWithType } from './../errors/ErrorWithType';
@@ -146,15 +147,19 @@ export class ExperimentService {
     skip: number,
     take: number,
     logger: UpgradeLogger,
+    organizationId: string,
     searchParams?: IExperimentSearchParams,
     sortParams?: IExperimentSortParams
   ): Promise<Experiment[]> {
     logger.info({ message: `Find paginated experiments` });
 
+    // First Query Builder
     let queryBuilder = this.experimentRepository
       .createQueryBuilder('experiment')
       .leftJoinAndSelect('experiment.conditions', 'conditions')
       .leftJoinAndSelect('experiment.partitions', 'partitions')
+      .leftJoinAndSelect('experiment.organization', 'organization')
+      .where('organization.id = :organizationId', { organizationId })
       .take(take)
       .skip(skip);
 
@@ -173,6 +178,7 @@ export class ExperimentService {
     let expIds = (await queryBuilder.getMany()).map((exp) => exp.id);
     expIds = Array.from(new Set(expIds));
 
+    // Second Query Builder
     let queryBuilderToReturn = this.experimentRepository
       .createQueryBuilder('experiment')
       .leftJoinAndSelect('experiment.conditions', 'conditions')
@@ -197,7 +203,9 @@ export class ExperimentService {
       .leftJoinAndSelect('conditions.conditionPayloads', 'conditionPayload')
       .leftJoinAndSelect('partitions.conditionPayloads', 'ConditionPayloadsArray')
       .leftJoinAndSelect('ConditionPayloadsArray.parentCondition', 'parentCondition')
-      .whereInIds(expIds);
+      .leftJoinAndSelect('experiment.organization', 'organization') // Add organization join
+      .whereInIds(expIds)
+      .andWhere('organization.id = :organizationId', { organizationId }); // Filter by organization ID
 
     if (sortParams) {
       queryBuilderToReturn = queryBuilderToReturn.addOrderBy(
@@ -205,6 +213,7 @@ export class ExperimentService {
         sortParams.sortAs
       );
     }
+
     const experiments = await queryBuilderToReturn.getMany();
     return experiments.map((experiment) => {
       return this.reducedConditionPayload(this.formatingPayload(this.formatingConditionPayload(experiment)));
@@ -261,6 +270,7 @@ export class ExperimentService {
     experiment: ExperimentDTO,
     currentUser: UserDTO,
     logger: UpgradeLogger,
+    organization: Organization,
     createType?: string
   ): Promise<Experiment> {
     logger.info({ message: 'Create a new experiment =>', details: experiment });
@@ -291,16 +301,17 @@ export class ExperimentService {
       experiment.partitions[index] = newDecisionPoint;
     });
     experiment.backendVersion = env.app.version;
-    return this.addExperimentInDB(experiment, currentUser, logger);
+    return this.addExperimentInDB(experiment, currentUser, logger, organization);
   }
 
   public createMultipleExperiments(
     experiments: ExperimentDTO[],
     user: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<Experiment[]> {
     logger.info({ message: `Generating test experiments`, details: experiments });
-    return this.addBulkExperiments(experiments, user, logger);
+    return this.addBulkExperiments(experiments, user, logger, organization);
   }
 
   public async delete(
@@ -363,11 +374,16 @@ export class ExperimentService {
     });
   }
 
-  public async update(experiment: ExperimentDTO, currentUser: UserDTO, logger: UpgradeLogger): Promise<ExperimentDTO> {
+  public async update(
+    experiment: ExperimentDTO,
+    currentUser: UserDTO,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<ExperimentDTO> {
     if (logger) {
       logger.info({ message: `Update the experiment`, details: experiment });
     }
-    return this.reducedConditionPayload(await this.updateExperimentInDB(experiment, currentUser, logger));
+    return this.reducedConditionPayload(await this.updateExperimentInDB(experiment, currentUser, logger, organization));
   }
 
   public async getExperimentalConditions(experimentId: string, logger: UpgradeLogger): Promise<ExperimentCondition[]> {
@@ -487,7 +503,8 @@ export class ExperimentService {
   public async importExperiment(
     experimentFiles: ExperimentFile[],
     user: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<ValidatedExperimentError[]> {
     const validatedExperiments = await this.validateExperiments(experimentFiles, logger);
 
@@ -548,7 +565,7 @@ export class ExperimentService {
       // Always set the imported experiment to "inactive".
       experiment.state = EXPERIMENT_STATE.INACTIVE;
     }
-    await this.addBulkExperiments(experiments, user, logger);
+    await this.addBulkExperiments(experiments, user, logger, organization);
     return validatedExperiments;
   }
 
@@ -608,7 +625,7 @@ export class ExperimentService {
     }
   }
 
-  private async getValidMoniteredDecisionPoints(excludeIfReachedDecisionPoints) {
+  private async getValidMonitoredDecisionPoints(excludeIfReachedDecisionPoints) {
     return await this.monitoredDecisionPointRepository.find({
       relations: ['user'],
       where: {
@@ -643,11 +660,11 @@ export class ExperimentService {
     // query all monitored experiment point for this experiment Id
     let monitoredDecisionPoints: MonitoredDecisionPoint[] = [];
     if (state === EXPERIMENT_STATE.ENROLLING) {
-      monitoredDecisionPoints = await this.getValidMoniteredDecisionPoints(excludeIfReachedDecisionPoints);
+      monitoredDecisionPoints = await this.getValidMonitoredDecisionPoints(excludeIfReachedDecisionPoints);
     } else if (state === EXPERIMENT_STATE.PREVIEW) {
       const previewUsersIds = previewUsers.map((user) => user.id);
       if (previewUsersIds.length > 0) {
-        monitoredDecisionPoints = await this.getValidMoniteredDecisionPoints(excludeIfReachedDecisionPoints);
+        monitoredDecisionPoints = await this.getValidMonitoredDecisionPoints(excludeIfReachedDecisionPoints);
       }
     }
 
@@ -726,7 +743,8 @@ export class ExperimentService {
   private async updateExperimentInDB(
     experiment: ExperimentDTO,
     user: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<Experiment> {
     await this.clearExperimentCacheDetail(
       experiment.context[0],
@@ -810,7 +828,7 @@ export class ExperimentService {
 
         let segmentIncludeDoc: Segment;
         try {
-          segmentIncludeDoc = await this.segmentService.upsertSegment(segmentIncludeData, logger);
+          segmentIncludeDoc = await this.segmentService.upsertSegment(segmentIncludeData, logger, organization);
         } catch (err) {
           const error = err as ErrorWithType;
           error.details = 'Error in updating IncludeSegment in DB';
@@ -821,7 +839,7 @@ export class ExperimentService {
 
         let segmentExcludeDoc: Segment;
         try {
-          segmentExcludeDoc = await this.segmentService.upsertSegment(segmentExcludeData, logger);
+          segmentExcludeDoc = await this.segmentService.upsertSegment(segmentExcludeData, logger, organization);
         } catch (err) {
           const error = err as ErrorWithType;
           error.details = 'Error in updating ExcludeSegment in DB';
@@ -1184,7 +1202,8 @@ export class ExperimentService {
   private async addExperimentInDB(
     experiment: ExperimentDTO,
     user: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<Experiment> {
     await this.clearExperimentCacheDetail(
       experiment.context[0],
@@ -1221,10 +1240,12 @@ export class ExperimentService {
       // Check for conditionCode is 'default' then return error:
       this.checkConditionCodeDefault(conditions);
 
+      const expDocWithOrg = { ...expDoc, organization: organization };
+
       // saving experiment docs
       let experimentDoc: Experiment;
       try {
-        experimentDoc = await transactionalEntityManager.getRepository(Experiment).save(expDoc);
+        experimentDoc = await transactionalEntityManager.getRepository(Experiment).save(expDocWithOrg);
       } catch (err) {
         const error = err as ErrorWithType;
         error.details = 'Error in adding experiment in DB';
@@ -1263,7 +1284,7 @@ export class ExperimentService {
           type: SEGMENT_TYPE.PRIVATE,
         };
         try {
-          segmentIncludeDoc = await this.segmentService.upsertSegment(segmentIncludeData, logger);
+          segmentIncludeDoc = await this.segmentService.upsertSegment(segmentIncludeData, logger, organization);
         } catch (err) {
           const error = err as ErrorWithType;
           error.details = 'Error in adding segment in DB';
@@ -1311,7 +1332,7 @@ export class ExperimentService {
           type: SEGMENT_TYPE.PRIVATE,
         };
         try {
-          segmentExcludeDoc = await this.segmentService.upsertSegment(segmentExcludeData, logger);
+          segmentExcludeDoc = await this.segmentService.upsertSegment(segmentExcludeData, logger, organization);
         } catch (err) {
           const error = err as ErrorWithType;
           error.details = 'Error in adding segment in DB';
@@ -1788,12 +1809,13 @@ export class ExperimentService {
   private async addBulkExperiments(
     experiments: ExperimentDTO[],
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<Experiment[]> {
     const createdExperiments = [];
     for (const exp of experiments) {
       try {
-        const result = await this.create(exp, currentUser, logger);
+        const result = await this.create(exp, currentUser, logger, organization);
         createdExperiments.push(result);
       } catch (err) {
         const error = err as Error;

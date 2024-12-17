@@ -1,5 +1,5 @@
 import { ExperimentAuditLog } from '../models/ExperimentAuditLog';
-import { Repository, EntityManager } from 'typeorm';
+import { Repository, EntityManager, Brackets } from 'typeorm';
 import { EntityRepository } from '../../typeorm-typedi-extensions';
 import { LOG_TYPE } from 'upgrade_types';
 import { UserDTO } from '../DTO/UserDTO';
@@ -7,16 +7,34 @@ import repositoryError from './utils/repositoryError';
 
 @EntityRepository(ExperimentAuditLog)
 export class ExperimentAuditLogRepository extends Repository<ExperimentAuditLog> {
-  public async paginatedFind(limit: number, offset: number, filter: LOG_TYPE): Promise<ExperimentAuditLog[]> {
+  public async paginatedFind(
+    limit: number,
+    offset: number,
+    filter: LOG_TYPE,
+    organizationId: string
+  ): Promise<ExperimentAuditLog[]> {
     let queryBuilder = this.createQueryBuilder('audit')
+      .leftJoinAndSelect('audit.user', 'user')
+      .leftJoinAndSelect('audit.experiment', 'experiment')
+      .leftJoinAndSelect('experiment.organization', 'experimentOrganization')
+      .leftJoinAndSelect('audit.featureFlag', 'featureFlag')
+      .leftJoinAndSelect('featureFlag.organization', 'featureFlagOrganization')
+      .where(
+        new Brackets((qb) => {
+          qb.where('experimentOrganization.id = :organizationId', { organizationId }).orWhere(
+            'featureFlagOrganization.id = :organizationId',
+            { organizationId }
+          );
+        })
+      )
       .offset(offset)
       .limit(limit)
-      .leftJoinAndSelect('audit.user', 'user')
       .orderBy('audit.createdAt', 'DESC');
 
     if (filter) {
-      queryBuilder = queryBuilder.where('audit.type = :filter', { filter });
+      queryBuilder = queryBuilder.andWhere('audit.type = :filter', { filter });
     }
+
     return queryBuilder.getMany().catch((error: any) => {
       const errorMsg = repositoryError('ExperimentAuditLogRepository', 'paginatedFind', { limit, offset }, error);
       throw errorMsg;

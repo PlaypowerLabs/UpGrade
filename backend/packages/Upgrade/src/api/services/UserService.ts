@@ -75,18 +75,25 @@ export class UserService {
     skip: number,
     take: number,
     logger: UpgradeLogger,
+    organizationId: string,
     searchParams?: UserSearchParamsValidator,
     sortParams?: UserSortParamsValidator
   ): Promise<any[]> {
     logger.info({ message: `Find paginated Users` });
-    let queryBuilder = this.userRepository.createQueryBuilder('users');
+
+    // Start query builder with organization join
+    let queryBuilder = this.userRepository
+      .createQueryBuilder('users')
+      .leftJoinAndSelect('users.organization', 'organization') // Join organization
+      .where('organization.id = :organizationId', { organizationId }) // Filter by organization ID
+      .offset(skip)
+      .limit(take);
 
     if (searchParams) {
       const customSearchString = searchParams.string.split(' ').join(`:*&`);
-      // add search query
       const postgresSearchString = this.postgresSearchString(searchParams.key);
       queryBuilder = queryBuilder
-        .addSelect(`ts_rank_cd(to_tsvector('english',${postgresSearchString}), to_tsquery(:query))`, 'rank')
+        .addSelect(`ts_rank_cd(to_tsvector('english', ${postgresSearchString}), to_tsquery(:query))`, 'rank')
         .addOrderBy('rank', 'DESC')
         .setParameter('query', `${customSearchString}:*`);
     }
@@ -94,8 +101,10 @@ export class UserService {
     if (sortParams) {
       queryBuilder = queryBuilder.addOrderBy(`users.${sortParams.key}`, sortParams.sortAs);
     }
+
+    // Exclude system email
     const systemEmail = systemUserDoc.email;
-    queryBuilder = queryBuilder.where('users.email != :email', { email: systemEmail }).offset(skip).limit(take);
+    queryBuilder = queryBuilder.andWhere('users.email != :email', { email: systemEmail });
 
     return queryBuilder.getMany();
   }

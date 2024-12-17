@@ -739,6 +739,7 @@ export class ExperimentController {
         paginatedParams.skip,
         paginatedParams.take,
         request.logger,
+        request.user.organization.id,
         paginatedParams.searchParams,
         paginatedParams.sortParams
       ),
@@ -951,7 +952,7 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<Experiment> {
     request.logger.child({ user: currentUser });
-    return this.experimentService.create(experiment, currentUser, request.logger);
+    return this.experimentService.create(experiment, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -992,7 +993,12 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<Experiment[]> {
     request.logger.child({ user: currentUser });
-    return this.experimentService.createMultipleExperiments(experiment, currentUser, request.logger);
+    return this.experimentService.createMultipleExperiments(
+      experiment,
+      currentUser,
+      request.logger,
+      request.user.organization
+    );
   }
 
   /**
@@ -1133,7 +1139,7 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<ExperimentDTO> {
     request.logger.child({ user: currentUser });
-    return this.experimentService.update({ ...experiment, id }, currentUser, request.logger);
+    return this.experimentService.update({ ...experiment, id }, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -1235,7 +1241,7 @@ export class ExperimentController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<ValidatedExperimentError[]> {
-    return this.experimentService.importExperiment(experiments, currentUser, request.logger);
+    return this.experimentService.importExperiment(experiments, currentUser, request.logger, request.user.organization);
   }
 
   /**

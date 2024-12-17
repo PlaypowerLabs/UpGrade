@@ -98,6 +98,7 @@ export class UserController {
         paginatedParams.skip,
         paginatedParams.take,
         request.logger,
+        request.user.organization.id,
         paginatedParams.searchParams,
         paginatedParams.sortParams
       ),

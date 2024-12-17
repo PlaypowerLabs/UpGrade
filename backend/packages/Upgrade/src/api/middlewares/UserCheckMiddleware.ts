@@ -1,7 +1,7 @@
 import * as express from 'express';
 import { SettingService } from '../services/SettingService';
 import { SERVER_ERROR } from 'upgrade_types';
-import { AppRequest } from '../../types';
+import { ClientAppRequest } from '../../types';
 import { Service } from 'typedi';
 import { ExperimentUserService } from '../services/ExperimentUserService';
 
@@ -9,7 +9,7 @@ import { ExperimentUserService } from '../services/ExperimentUserService';
 export class UserCheckMiddleware {
   constructor(public settingService: SettingService, public experimentUserService: ExperimentUserService) {}
 
-  public async use(req: AppRequest, res: AppRequest, next: express.NextFunction): Promise<any> {
+  public async use(req: ClientAppRequest, res: ClientAppRequest, next: express.NextFunction): Promise<any> {
     try {
       const user_id = req.get('User-Id');
       if (!user_id) {

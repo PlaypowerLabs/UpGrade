@@ -219,7 +219,7 @@ export class SegmentController {
    */
   @Get()
   public async getAllSegments(@Req() request: AppRequest): Promise<getSegmentData> {
-    return this.segmentService.getAllSegmentWithStatus(request.logger);
+    return this.segmentService.getAllSegmentWithStatus(request.logger, request.user.organization.id);
   }
 
   /**
@@ -301,7 +301,11 @@ export class SegmentController {
     @Params({ validate: true }) { segmentId }: IdValidator,
     @Req() request: AppRequest
   ): Promise<Segment> {
-    const segment = await this.segmentService.getSingleSegmentWithStatus(segmentId, request.logger);
+    const segment = await this.segmentService.getSingleSegmentWithStatus(
+      segmentId,
+      request.logger,
+      request.user.organization.id
+    );
     if (!segment) {
       throw new NotFoundException('Segment not found.');
     }
@@ -340,7 +344,7 @@ export class SegmentController {
     @Body({ validate: true }) segment: SegmentInputValidator,
     @Req() request: AppRequest
   ): Promise<Segment> {
-    return this.segmentService.upsertSegment(segment, request.logger);
+    return this.segmentService.upsertSegment(segment, request.logger, request.user.organization);
   }
 
   /**
@@ -410,7 +414,7 @@ export class SegmentController {
     @Body({ validate: true }) segments: SegmentFile[],
     @Req() request: AppRequest
   ): Promise<SegmentImportError[]> {
-    return this.segmentService.importSegments(segments, request.logger);
+    return this.segmentService.importSegments(segments, request.logger, request.user.organization);
   }
 
   /**

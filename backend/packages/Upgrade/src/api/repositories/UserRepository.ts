@@ -16,6 +16,7 @@ export class UserRepository extends Repository<User> {
       .setParameter('lastName', user.lastName)
       .setParameter('imageUrl', user.imageUrl)
       .setParameter('localTimeZone', user.localTimeZone)
+      .setParameter('organization', user.organization)
       .returning('*')
       .execute()
       .catch((errorMsg: any) => {

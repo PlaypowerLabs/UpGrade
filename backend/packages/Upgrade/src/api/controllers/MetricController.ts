@@ -30,7 +30,7 @@ export class MetricController {
    */
   @Get()
   public getAllMetrics(@Req() request: AppRequest): Promise<IMetricUnit[]> {
-    return this.metricService.getAllMetrics(request.logger);
+    return this.metricService.getAllMetrics(request.logger, request.user.organization.id);
   }
 
   /**
@@ -109,7 +109,12 @@ export class MetricController {
     @Body({ validate: true }) metric: MetricValidator,
     @Req() request: AppRequest
   ): Promise<IMetricUnit[]> {
-    return this.metricService.upsertAllMetrics(metric.metricUnit, metric.context, request.logger);
+    return this.metricService.upsertAllMetrics(
+      metric.metricUnit,
+      metric.context,
+      request.logger,
+      request.user.organization
+    );
   }
 
   /**

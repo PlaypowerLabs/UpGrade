@@ -6,17 +6,29 @@ import { SERVER_ERROR, IMetricUnit, IMetricMetaData, IGroupMetric, ISingleMetric
 import { SettingService } from './SettingService';
 import { UpgradeLogger } from '../../lib/logger/UpgradeLogger';
 import { HttpError } from '../errors';
+import { Organization } from '../models/Organization';
 
 export const METRICS_JOIN_TEXT = '@__@';
+export interface MetricDocToSave {
+  key: string;
+  type: IMetricMetaData;
+  allowedData: string[];
+  context: string[];
+  organization?: Organization;
+}
 
 @Service()
 export class MetricService {
   constructor(@InjectRepository() private metricRepository: MetricRepository, public settingService: SettingService) {}
 
-  public async getAllMetrics(logger: UpgradeLogger): Promise<IMetricUnit[]> {
-    logger.info({ message: 'Get all metrics' });
-    // check permission for metrics
-    const metricData = await this.metricRepository.find();
+  public async getAllMetrics(logger: UpgradeLogger, organizationId: string): Promise<IMetricUnit[]> {
+    logger.info({ message: 'Get all metrics filtered by organization' });
+
+    // Fetch metrics filtered by organizationId
+    const metricData = await this.metricRepository.find({
+      where: { organization: { id: organizationId } },
+    });
+
     return this.metricDocumentToJson(metricData);
   }
 
@@ -41,11 +53,12 @@ export class MetricService {
   public async upsertAllMetrics(
     metrics: Array<IGroupMetric | ISingleMetric>,
     contexts: string[],
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<IMetricUnit[]> {
     logger.info({ message: 'Upsert all metrics' });
-    const upsertedMetrics = await this.addAllMetrics(metrics, contexts, logger);
-    return this.metricDocumentToJson(upsertedMetrics);
+    const upsertMetrics = await this.addAllMetrics(metrics, contexts, logger, organization);
+    return this.metricDocumentToJson(upsertMetrics);
   }
 
   public async deleteMetric(key: string, logger: UpgradeLogger): Promise<IMetricUnit[]> {
@@ -62,7 +75,8 @@ export class MetricService {
   private async addAllMetrics(
     metrics: Array<IGroupMetric | ISingleMetric>,
     contexts: string[],
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization?: Organization
   ): Promise<Metric[]> {
     // check permission for metrics
     const isAllowed = await this.checkMetricsPermission(logger);
@@ -75,12 +89,20 @@ export class MetricService {
     // create query for metrics
     const formattedMetrics = this.parseMetrics(metrics);
     const keyArray = this.metricJsonToDocument(formattedMetrics);
-    const metricDoc: any[] = keyArray.map((metric) => ({
-      key: metric.key,
-      type: metric.type,
-      allowedData: metric.allowedData,
-      context: contexts,
-    }));
+    const metricDoc: MetricDocToSave[] = keyArray.map((metric) => {
+      let metricData: MetricDocToSave = {
+        key: metric.key,
+        type: metric.type,
+        allowedData: metric.allowedData,
+        context: contexts,
+      };
+
+      if (organization) {
+        metricData = { ...metricData, organization: organization };
+      }
+
+      return metricData;
+    });
     return this.metricRepository.save(metricDoc);
   }
 

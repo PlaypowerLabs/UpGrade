@@ -30,7 +30,7 @@ import { LogValidator } from './validators/LogValidator';
 import { MetricService } from '../services/MetricService';
 import { ExperimentUserAliasesValidator } from './validators/ExperimentUserAliasesValidator';
 import * as express from 'express';
-import { AppRequest } from '../../types';
+import { ClientAppRequest } from '../../types';
 import { MonitoredDecisionPointLog } from '../models/MonitoredDecisionPointLog';
 import { MarkExperimentValidatorv5 } from './validators/MarkExperimentValidator.v5';
 import { Log } from '../models/Log';
@@ -191,7 +191,7 @@ export class ExperimentClientController {
   @Post('init')
   public async init(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     experimentUser: ExperimentUserValidator
   ): Promise<Pick<ExperimentUser, 'id' | 'group' | 'workingGroup'>> {
@@ -279,7 +279,7 @@ export class ExperimentClientController {
   @Patch('groupmembership')
   public async setGroupMemberShip(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     experimentUser: ExperimentUserValidator
   ): Promise<IGroupMembership> {
@@ -351,7 +351,7 @@ export class ExperimentClientController {
   @Patch('workinggroup')
   public async setWorkingGroup(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     workingGroupParams: UpdateWorkingGroupValidator
   ): Promise<IWorkingGroup> {
@@ -458,7 +458,7 @@ export class ExperimentClientController {
   @Post('mark')
   public async markExperimentPoint(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     experiment: MarkExperimentValidatorv5
   ): Promise<IMonitoredDecisionPoint> {
@@ -562,7 +562,7 @@ export class ExperimentClientController {
   @Post('assign')
   public async getAllExperimentConditions(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     experiment: ExperimentAssignmentValidator
   ): Promise<IExperimentAssignmentv5[]> {
@@ -691,7 +691,7 @@ export class ExperimentClientController {
   @Post('log')
   public async log(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     logData: LogValidator
   ): Promise<Omit<Log, 'createdAt' | 'updatedAt' | 'versionNumber'>[]> {
@@ -819,7 +819,7 @@ export class ExperimentClientController {
    */
   @Post('featureflag')
   public async getAllFlags(
-    @Req() request: AppRequest,
+    @Req() request: ClientAppRequest,
     @Body({ validate: true })
     experiment: ExperimentAssignmentValidator
   ): Promise<string[]> {
@@ -885,7 +885,7 @@ export class ExperimentClientController {
   @Patch('useraliases')
   public async setUserAliases(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     user: ExperimentUserAliasesValidator
   ): Promise<IUserAliases> {
@@ -917,7 +917,7 @@ export class ExperimentClientController {
    */
   @Authorized()
   @Delete('clearDB')
-  public async clearDB(@Req() request: AppRequest): Promise<string> {
+  public async clearDB(@Req() request: ClientAppRequest): Promise<string> {
     return this.experimentUserService.clearDB(request.logger);
   }
 }

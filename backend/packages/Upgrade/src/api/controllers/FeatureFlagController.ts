@@ -179,7 +179,7 @@ export class FeatureFlagsController {
 
   @Get()
   public find(@Req() request: AppRequest): Promise<FeatureFlag[]> {
-    return this.featureFlagService.find(request.logger);
+    return this.featureFlagService.find(request.logger, request.user.organization.id);
   }
 
   /**
@@ -276,6 +276,7 @@ export class FeatureFlagsController {
         paginatedParams.skip,
         paginatedParams.take,
         request.logger,
+        request.user.organization.id,
         paginatedParams.searchParams,
         paginatedParams.sortParams
       ),
@@ -317,7 +318,7 @@ export class FeatureFlagsController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<FeatureFlag> {
-    return this.featureFlagService.create(flag, currentUser, request.logger);
+    return this.featureFlagService.create(flag, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -806,7 +807,12 @@ export class FeatureFlagsController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<IImportError[]> {
-    return await this.featureFlagService.importFeatureFlags(featureFlags.files, currentUser, request.logger);
+    return await this.featureFlagService.importFeatureFlags(
+      featureFlags.files,
+      currentUser,
+      request.logger,
+      request.user.organization
+    );
   }
   /**
    * @swagger
