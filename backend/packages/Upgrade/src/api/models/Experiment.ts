@@ -176,8 +176,4 @@ export class Experiment extends BaseModel {
 
   @ManyToOne(() => Organization, (organization) => organization.experiment)
   public organization: Organization;
-
-  @OneToMany(() => ExperimentAuditLog, (auditLog) => auditLog.experiment)
-  @Type(() => ExperimentAuditLog)
-  public auditLogs: ExperimentAuditLog[];
 }

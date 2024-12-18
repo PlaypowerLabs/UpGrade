@@ -1,32 +1,28 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Migrations1733748661895 implements MigrationInterface {
-  name = 'Migrations1733748661895';
+export class Migrations1734519331550 implements MigrationInterface {
+  name = 'Migrations1734519331550';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `CREATE TABLE "organization" ("createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), "versionNumber" integer NOT NULL, "id" character varying NOT NULL, "name" character varying NOT NULL, "secretKey" character varying NOT NULL, "description" character varying, CONSTRAINT "PK_472c1f99a32def1b0abb219cd67" PRIMARY KEY ("id"))`
+      `CREATE TABLE "organization" ("createdAt" TIMESTAMP NOT NULL DEFAULT now(), "updatedAt" TIMESTAMP NOT NULL DEFAULT now(), "versionNumber" integer NOT NULL, "id" uuid NOT NULL, "name" character varying NOT NULL, "secretKey" character varying NOT NULL, "description" character varying, CONSTRAINT "PK_472c1f99a32def1b0abb219cd67" PRIMARY KEY ("id"))`
     );
-    await queryRunner.query(`ALTER TABLE "monitored_decision_point" ADD "organizationId" character varying`);
-    await queryRunner.query(`ALTER TABLE "experiment_audit_log" ADD "experimentId" uuid`);
-    await queryRunner.query(`ALTER TABLE "experiment_audit_log" ADD "featureFlagId" uuid`);
-    await queryRunner.query(`ALTER TABLE "user" ADD "organizationId" character varying`);
-    await queryRunner.query(`ALTER TABLE "stratification_factor" ADD "organizationId" character varying`);
-    await queryRunner.query(`ALTER TABLE "preview_user" ADD "organizationId" character varying`);
-    await queryRunner.query(`ALTER TABLE "feature_flag" ADD "organizationId" character varying`);
-    await queryRunner.query(`ALTER TABLE "segment" ADD "organizationId" character varying`);
-    await queryRunner.query(`ALTER TABLE "experiment" ADD "organizationId" character varying`);
-    await queryRunner.query(`ALTER TABLE "metric" ADD "organizationId" character varying`);
-    await queryRunner.query(`ALTER TABLE "experiment_user" ADD "organizationId" character varying`);
+    await queryRunner.query(`ALTER TABLE "monitored_decision_point" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "experiment_audit_log" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "user" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "stratification_factor" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "preview_user" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "feature_flag" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "segment" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "experiment" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "metric" ADD "organizationId" uuid`);
+    await queryRunner.query(`ALTER TABLE "experiment_user" ADD "organizationId" uuid`);
     await queryRunner.query(`ALTER TABLE "feature_flag" ALTER COLUMN "description" DROP NOT NULL`);
     await queryRunner.query(
       `ALTER TABLE "monitored_decision_point" ADD CONSTRAINT "FK_7118ba3f26783d02828d2ad21ac" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
     );
     await queryRunner.query(
-      `ALTER TABLE "experiment_audit_log" ADD CONSTRAINT "FK_3daa95173a06616bd3b55227042" FOREIGN KEY ("experimentId") REFERENCES "experiment"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
-    );
-    await queryRunner.query(
-      `ALTER TABLE "experiment_audit_log" ADD CONSTRAINT "FK_8048d11bf757f642926110a1bb8" FOREIGN KEY ("featureFlagId") REFERENCES "feature_flag"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
+      `ALTER TABLE "experiment_audit_log" ADD CONSTRAINT "FK_036ba5ebefd9115585d032bf7c3" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE NO ACTION`
     );
     await queryRunner.query(
       `ALTER TABLE "user" ADD CONSTRAINT "FK_dfda472c0af7812401e592b6a61" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`
@@ -63,8 +59,7 @@ export class Migrations1733748661895 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "preview_user" DROP CONSTRAINT "FK_fbb501b04d3d6b74f7427cd4066"`);
     await queryRunner.query(`ALTER TABLE "stratification_factor" DROP CONSTRAINT "FK_2a44d2c54c0a813883409856812"`);
     await queryRunner.query(`ALTER TABLE "user" DROP CONSTRAINT "FK_dfda472c0af7812401e592b6a61"`);
-    await queryRunner.query(`ALTER TABLE "experiment_audit_log" DROP CONSTRAINT "FK_8048d11bf757f642926110a1bb8"`);
-    await queryRunner.query(`ALTER TABLE "experiment_audit_log" DROP CONSTRAINT "FK_3daa95173a06616bd3b55227042"`);
+    await queryRunner.query(`ALTER TABLE "experiment_audit_log" DROP CONSTRAINT "FK_036ba5ebefd9115585d032bf7c3"`);
     await queryRunner.query(`ALTER TABLE "monitored_decision_point" DROP CONSTRAINT "FK_7118ba3f26783d02828d2ad21ac"`);
     await queryRunner.query(`ALTER TABLE "feature_flag" ALTER COLUMN "description" SET NOT NULL`);
     await queryRunner.query(`ALTER TABLE "experiment_user" DROP COLUMN "organizationId"`);
@@ -75,8 +70,7 @@ export class Migrations1733748661895 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "preview_user" DROP COLUMN "organizationId"`);
     await queryRunner.query(`ALTER TABLE "stratification_factor" DROP COLUMN "organizationId"`);
     await queryRunner.query(`ALTER TABLE "user" DROP COLUMN "organizationId"`);
-    await queryRunner.query(`ALTER TABLE "experiment_audit_log" DROP COLUMN "featureFlagId"`);
-    await queryRunner.query(`ALTER TABLE "experiment_audit_log" DROP COLUMN "experimentId"`);
+    await queryRunner.query(`ALTER TABLE "experiment_audit_log" DROP COLUMN "organizationId"`);
     await queryRunner.query(`ALTER TABLE "monitored_decision_point" DROP COLUMN "organizationId"`);
     await queryRunner.query(`DROP TABLE "organization"`);
   }

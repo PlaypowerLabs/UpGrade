@@ -68,8 +68,4 @@ export class FeatureFlag extends BaseModel {
 
   @OneToMany(() => FeatureFlagExposure, (featureFlagExposure) => featureFlagExposure.featureFlag)
   public featureFlagExposures: FeatureFlagExposure[];
-
-  @OneToMany(() => ExperimentAuditLog, (auditLog) => auditLog.featureFlag)
-  @Type(() => ExperimentAuditLog)
-  public auditLogs: ExperimentAuditLog[];
 }
