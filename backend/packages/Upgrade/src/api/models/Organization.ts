@@ -11,10 +11,11 @@ import { Metric } from './Metric';
 import { PreviewUser } from './PreviewUser';
 import { ExperimentUser } from './ExperimentUser';
 import { Setting } from './Setting';
+import { ExperimentAuditLog } from './ExperimentAuditLog';
 
 @Entity()
 export class Organization extends BaseModel {
-  @PrimaryColumn()
+  @PrimaryColumn('uuid')
   @IsNotEmpty()
   public id: string;
 
@@ -57,6 +58,9 @@ export class Organization extends BaseModel {
 
   @OneToMany(() => MonitoredDecisionPoint, (monitoredDecisionPoint) => monitoredDecisionPoint.organization)
   public monitoredDecisionPoint: MonitoredDecisionPoint[];
+
+  @OneToMany(() => ExperimentAuditLog, (auditLogs) => auditLogs.organization)
+  public auditLogs: ExperimentAuditLog[];
 
   @OneToOne(() => Setting, (setting) => setting.organization)
   public setting: Setting;
