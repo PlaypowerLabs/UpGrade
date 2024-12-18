@@ -35,6 +35,7 @@ import timezone from 'dayjs/plugin/timezone';
 import { ExperimentService } from './ExperimentService';
 import { QueryService } from './QueryService';
 import { HttpError } from '../errors';
+import { Organization } from '../models/Organization';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -168,7 +169,12 @@ export class AnalyticsService {
     });
   }
 
-  public async getCSVData(experimentId: string, email: string, logger: UpgradeLogger): Promise<string> {
+  public async getCSVData(
+    experimentId: string,
+    email: string,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<string> {
     logger.info({ message: `Inside getCSVData ${experimentId} , ${email}` });
     try {
       const timeStamp = new Date().toISOString();
@@ -477,7 +483,8 @@ export class AnalyticsService {
       await this.experimentAuditLogRepository.saveRawJson(
         LOG_TYPE.EXPERIMENT_DATA_EXPORTED,
         { experimentName: experimentDetails[0].experimentName },
-        user
+        user,
+        organization
       );
       logger.info({ message: `Exported Data emailed successfully to ${email}` });
     } catch (err) {

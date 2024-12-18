@@ -7,7 +7,6 @@ import { FeatureFlagSegmentInclusion } from './FeatureFlagSegmentInclusion';
 import { FeatureFlagSegmentExclusion } from './FeatureFlagSegmentExclusion';
 import { FeatureFlagExposure } from './FeatureFlagExposure';
 import { Organization } from './Organization';
-import { ExperimentAuditLog } from './ExperimentAuditLog';
 
 @Entity()
 @Unique(['key', 'context'])

@@ -1,3 +1,4 @@
+import { Organization } from './../models/Organization';
 import { Service } from 'typedi';
 import { FeatureFlag } from '../models/FeatureFlag';
 import { Segment } from '../models/Segment';
@@ -54,7 +55,6 @@ import { diffString } from 'json-diff';
 import { SegmentRepository } from '../repositories/SegmentRepository';
 import { ExperimentAuditLog } from '../models/ExperimentAuditLog';
 import { NotFoundException } from '@nestjs/common/exceptions';
-import { Organization } from '../models/Organization';
 
 @Service()
 export class FeatureFlagService {
@@ -219,7 +219,8 @@ export class FeatureFlagService {
   public async delete(
     featureFlagId: string,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<FeatureFlag | undefined> {
     logger.info({ message: `Delete Feature Flag => ${featureFlagId}` });
     return await this.dataSource.transaction(async (transactionalEntityManager) => {
@@ -257,7 +258,8 @@ export class FeatureFlagService {
         await this.experimentAuditLogRepository.saveRawJson(
           LOG_TYPE.FEATURE_FLAG_DELETED,
           createAuditLogData,
-          currentUser
+          currentUser,
+          organization
         );
         return deletedFlag;
       }
@@ -265,7 +267,12 @@ export class FeatureFlagService {
     });
   }
 
-  public async updateState(flagId: string, status: FEATURE_FLAG_STATUS, currentUser: UserDTO): Promise<FeatureFlag> {
+  public async updateState(
+    flagId: string,
+    status: FEATURE_FLAG_STATUS,
+    currentUser: UserDTO,
+    organization: Organization
+  ): Promise<FeatureFlag> {
     const oldFeatureFlag = await this.findOne(flagId);
     let updatedState: FeatureFlag;
     try {
@@ -284,11 +291,21 @@ export class FeatureFlagService {
       newState: status,
     };
 
-    await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_STATUS_CHANGED, data, currentUser);
+    await this.experimentAuditLogRepository.saveRawJson(
+      LOG_TYPE.FEATURE_FLAG_STATUS_CHANGED,
+      data,
+      currentUser,
+      organization
+    );
     return updatedState;
   }
 
-  public async updateFilterMode(flagId: string, filterMode: FILTER_MODE, currentUser: UserDTO): Promise<FeatureFlag> {
+  public async updateFilterMode(
+    flagId: string,
+    filterMode: FILTER_MODE,
+    currentUser: UserDTO,
+    organization: Organization
+  ): Promise<FeatureFlag> {
     let updatedFilterMode: FeatureFlag;
     try {
       updatedFilterMode = await this.featureFlagRepository.updateFilterMode(flagId, filterMode);
@@ -305,11 +322,16 @@ export class FeatureFlagService {
       filterMode: filterMode,
     };
 
-    await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_UPDATED, data, currentUser);
+    await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_UPDATED, data, currentUser, organization);
     return updatedFilterMode;
   }
 
-  public async exportDesign(id: string, currentUser: UserDTO, logger: UpgradeLogger): Promise<FeatureFlag | null> {
+  public async exportDesign(
+    id: string,
+    currentUser: UserDTO,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<FeatureFlag | null> {
     const featureFlag = await this.findOne(id, logger);
     if (featureFlag) {
       const exportAuditLog: FeatureFlagDeletedData = {
@@ -319,7 +341,8 @@ export class FeatureFlagService {
       await this.experimentAuditLogRepository.saveRawJson(
         LOG_TYPE.FEATURE_FLAG_DESIGN_EXPORTED,
         exportAuditLog,
-        currentUser
+        currentUser,
+        organization
       );
     }
 
@@ -329,7 +352,8 @@ export class FeatureFlagService {
   public async update(
     flagDTO: FeatureFlagValidation,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<FeatureFlag> {
     logger.info({ message: `Update a Feature Flag => ${flagDTO.toString()}` });
     const result = await this.featureFlagRepository.validateUniqueKey(flagDTO);
@@ -341,7 +365,7 @@ export class FeatureFlagService {
       throw error;
     }
     // TODO add entry in log of updating feature flag
-    return this.updateFeatureFlagInDB(this.featureFlagValidatorToFlag(flagDTO), currentUser, logger);
+    return this.updateFeatureFlagInDB(this.featureFlagValidatorToFlag(flagDTO), currentUser, logger, organization);
   }
 
   private async addFeatureFlagInDB(
@@ -370,7 +394,12 @@ export class FeatureFlagService {
         flagId: featureFlagDoc.id,
         flagName: featureFlagDoc.name,
       };
-      await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_CREATED, createAuditLogData, user);
+      await this.experimentAuditLogRepository.saveRawJson(
+        LOG_TYPE.FEATURE_FLAG_CREATED,
+        createAuditLogData,
+        user,
+        organization
+      );
       return featureFlagDoc;
     };
 
@@ -385,7 +414,12 @@ export class FeatureFlagService {
     }
   }
 
-  private async updateFeatureFlagInDB(flag: FeatureFlag, user: UserDTO, logger: UpgradeLogger): Promise<FeatureFlag> {
+  private async updateFeatureFlagInDB(
+    flag: FeatureFlag,
+    user: UserDTO,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<FeatureFlag> {
     const {
       featureFlagSegmentExclusion,
       featureFlagSegmentInclusion,
@@ -421,6 +455,7 @@ export class FeatureFlagService {
               includeListIds,
               FEATURE_FLAG_LIST_FILTER_MODE.INCLUSION,
               user,
+              organization,
               transactionalEntityManager
             )
           );
@@ -432,6 +467,7 @@ export class FeatureFlagService {
               excludeListIds,
               FEATURE_FLAG_LIST_FILTER_MODE.EXCLUSION,
               user,
+              organization,
               transactionalEntityManager
             )
           );
@@ -469,7 +505,12 @@ export class FeatureFlagService {
         diff: diffString(newFlagDocClone, oldFlagDocClone),
       };
 
-      await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_UPDATED, updateAuditLog, user);
+      await this.experimentAuditLogRepository.saveRawJson(
+        LOG_TYPE.FEATURE_FLAG_UPDATED,
+        updateAuditLog,
+        user,
+        organization
+      );
 
       return {
         ...featureFlagDoc,
@@ -483,9 +524,10 @@ export class FeatureFlagService {
     segmentId: string,
     filterType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<Segment> {
-    await this.createDeleteListAuditLogs([segmentId], filterType, currentUser);
+    await this.createDeleteListAuditLogs([segmentId], filterType, currentUser, organization);
     return this.segmentService.deleteSegment(segmentId, logger);
   }
 
@@ -493,6 +535,7 @@ export class FeatureFlagService {
     segmentIds: string[],
     filterType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
+    organization: Organization,
     entityManager?: EntityManager
   ): Promise<void> {
     const auditLogPromises = [];
@@ -534,6 +577,7 @@ export class FeatureFlagService {
         type: LOG_TYPE.FEATURE_FLAG_UPDATED,
         data: updateAuditLog,
         user: currentUser,
+        organization: organization,
       });
 
       auditLogPromises.push(savePromise);
@@ -548,6 +592,7 @@ export class FeatureFlagService {
     filterType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
     logger: UpgradeLogger,
+    organization: Organization,
     transactionalEntityManager?: EntityManager
   ): Promise<(FeatureFlagSegmentInclusion | FeatureFlagSegmentExclusion)[]> {
     logger.info({ message: `Add ${filterType} list to feature flag` });
@@ -562,7 +607,9 @@ export class FeatureFlagService {
       let newSegments: Segment[];
       try {
         newSegments = await Promise.all(
-          segmentsToCreate.map((segment) => this.segmentService.upsertSegmentInPipeline(segment, logger, manager))
+          segmentsToCreate.map((segment) =>
+            this.segmentService.upsertSegmentInPipeline(segment, logger, organization, manager)
+          )
         );
       } catch (err) {
         const error = new Error(`Error in creating private segment for feature flag ${filterType} list: ${err}`);
@@ -623,6 +670,7 @@ export class FeatureFlagService {
           LOG_TYPE.FEATURE_FLAG_UPDATED,
           updateAuditLog,
           currentUser,
+          organization,
           transactionalEntityManager
         );
       }
@@ -645,7 +693,8 @@ export class FeatureFlagService {
     listInput: FeatureFlagListValidator,
     filterType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<FeatureFlagSegmentInclusion | FeatureFlagSegmentExclusion> {
     logger.info({ message: `Update ${filterType} list for feature flag` });
     return await this.dataSource.transaction(async (transactionalEntityManager) => {
@@ -686,6 +735,7 @@ export class FeatureFlagService {
         const updatedSegment = await this.segmentService.upsertSegmentInPipeline(
           listInput.segment,
           logger,
+          organization,
           transactionalEntityManager
         );
         existingRecord.segment = updatedSegment;
@@ -750,7 +800,12 @@ export class FeatureFlagService {
         list: listData,
       };
 
-      await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_UPDATED, updateAuditLog, currentUser);
+      await this.experimentAuditLogRepository.saveRawJson(
+        LOG_TYPE.FEATURE_FLAG_UPDATED,
+        updateAuditLog,
+        currentUser,
+        organization
+      );
 
       return existingRecord;
     });
@@ -966,6 +1021,7 @@ export class FeatureFlagService {
             FEATURE_FLAG_LIST_FILTER_MODE.INCLUSION,
             currentUser,
             logger,
+            organization,
             transactionalEntityManager
           ),
           this.addList(
@@ -973,6 +1029,7 @@ export class FeatureFlagService {
             FEATURE_FLAG_LIST_FILTER_MODE.EXCLUSION,
             currentUser,
             logger,
+            organization,
             transactionalEntityManager
           ),
         ]);
@@ -1116,7 +1173,8 @@ export class FeatureFlagService {
     featureFlagId: string,
     listType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<IImportError[]> {
     logger.info({ message: 'Import feature flags' });
     const validatedFlags = await this.validateImportFeatureFlagLists(featureFlagListFiles, featureFlagId, logger);
@@ -1152,7 +1210,7 @@ export class FeatureFlagService {
           listDocs.push(listDoc);
         }
 
-        return await this.addList(listDocs, listType, currentUser, logger, transactionalEntityManager);
+        return await this.addList(listDocs, listType, currentUser, logger, organization, transactionalEntityManager);
       });
 
     logger.info({ message: 'Imported feature flags', details: createdLists });

@@ -317,6 +317,7 @@ export class ExperimentService {
   public async delete(
     experimentId: string,
     currentUser: UserDTO,
+    organization: Organization,
     logger?: UpgradeLogger
   ): Promise<Experiment | undefined> {
     if (logger) {
@@ -341,7 +342,12 @@ export class ExperimentService {
         };
 
         // Add log for experiment deleted
-        this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.EXPERIMENT_DELETED, deleteAuditLogData, currentUser);
+        this.experimentAuditLogRepository.saveRawJson(
+          LOG_TYPE.EXPERIMENT_DELETED,
+          deleteAuditLogData,
+          currentUser,
+          organization
+        );
         if (experiment.experimentSegmentInclusion) {
           try {
             await transactionalEntityManager
@@ -421,6 +427,7 @@ export class ExperimentService {
     state: EXPERIMENT_STATE,
     user: UserDTO,
     logger: UpgradeLogger,
+    organization: Organization,
     scheduleDate?: Date,
     entityManager?: EntityManager
   ): Promise<Experiment> {
@@ -470,7 +477,13 @@ export class ExperimentService {
       data = { ...data, startOn: scheduleDate };
     }
     // add experiment audit logs
-    await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.EXPERIMENT_STATE_CHANGED, data, user, entityManager);
+    await this.experimentAuditLogRepository.saveRawJson(
+      LOG_TYPE.EXPERIMENT_STATE_CHANGED,
+      data,
+      user,
+      organization,
+      entityManager
+    );
 
     const timeLogDate = new Date();
 
@@ -569,7 +582,12 @@ export class ExperimentService {
     return validatedExperiments;
   }
 
-  public async exportExperiment(experimentIds: string[], user: UserDTO, logger: UpgradeLogger): Promise<Experiment[]> {
+  public async exportExperiment(
+    experimentIds: string[],
+    user: UserDTO,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<Experiment[]> {
     logger.info({ message: `Inside export Experiment JSON ${experimentIds}` });
     const experimentDetails = await this.experimentRepository.find({
       where: { id: In(experimentIds) },
@@ -604,7 +622,8 @@ export class ExperimentService {
       this.experimentAuditLogRepository.saveRawJson(
         LOG_TYPE.EXPERIMENT_DESIGN_EXPORTED,
         { experimentName: experiment.name },
-        user
+        user,
+        organization
       );
       return this.reducedConditionPayload(this.formatingPayload(this.formatingConditionPayload(experiment)));
     });
@@ -1144,7 +1163,12 @@ export class ExperimentService {
           diff: diffString(newExperimentClone, oldExperimentClone),
         };
 
-        await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.EXPERIMENT_UPDATED, updateAuditLog, user);
+        await this.experimentAuditLogRepository.saveRawJson(
+          LOG_TYPE.EXPERIMENT_UPDATED,
+          updateAuditLog,
+          user,
+          organization
+        );
         return { updatedExperiment, toDeleteQueriesDoc };
       })
       .then(async ({ updatedExperiment }) => {
@@ -1528,7 +1552,12 @@ export class ExperimentService {
       experimentId: createdExperiment.id,
       experimentName: createdExperiment.name,
     };
-    await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.EXPERIMENT_CREATED, createAuditLogData, user);
+    await this.experimentAuditLogRepository.saveRawJson(
+      LOG_TYPE.EXPERIMENT_CREATED,
+      createAuditLogData,
+      user,
+      organization
+    );
     return this.reducedConditionPayload(this.formatingPayload(createdExperiment));
   }
 

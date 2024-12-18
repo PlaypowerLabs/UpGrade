@@ -70,6 +70,6 @@ export class LoginController {
       // Role can be updated later by admin users only
       delete user.role;
     }
-    return this.userService.upsertUser(user, request.logger);
+    return this.userService.upsertUser(user, request.logger, request.user?.organization);
   }
 }

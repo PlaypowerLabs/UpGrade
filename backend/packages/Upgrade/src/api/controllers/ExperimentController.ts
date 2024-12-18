@@ -1039,7 +1039,7 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<Experiment | undefined> {
     request.logger.child({ user: currentUser });
-    const experiment = await this.experimentService.delete(id, currentUser, request.logger);
+    const experiment = await this.experimentService.delete(id, currentUser, request.user.organization, request.logger);
 
     if (!experiment) {
       throw new NotFoundException('Experiment not found.');
@@ -1091,6 +1091,7 @@ export class ExperimentController {
       experiment.state,
       currentUser,
       request.logger,
+      request.user.organization,
       experiment.scheduleDate
     );
   }
@@ -1292,7 +1293,12 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<Experiment[]> {
     const experimentIds = params.ids;
-    return this.experimentService.exportExperiment(experimentIds, currentUser, request.logger);
+    return this.experimentService.exportExperiment(
+      experimentIds,
+      currentUser,
+      request.logger,
+      request.user.organization
+    );
   }
 
   /**

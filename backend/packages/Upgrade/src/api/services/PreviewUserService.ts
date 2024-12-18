@@ -7,6 +7,7 @@ import { ExplicitIndividualAssignmentRepository } from '../repositories/Explicit
 import { ExplicitIndividualAssignment } from '../models/ExplicitIndividualAssignment';
 import { UpgradeLogger } from '../../lib/logger/UpgradeLogger';
 import { PreviewUserValidator } from '../controllers/validators/PreviewUserValidator';
+import { Organization } from '../models/Organization';
 
 @Service()
 export class PreviewUserService {
@@ -57,16 +58,25 @@ export class PreviewUserService {
     });
   }
 
-  public create(userDTO: PreviewUserValidator, logger: UpgradeLogger): Promise<PreviewUser> {
+  public create(
+    userDTO: PreviewUserValidator,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<PreviewUser> {
     logger.info({ message: `Create a new preview user => ${userDTO}` });
     userDTO.id = userDTO.id || uuid();
-    return this.userRepository.save(this.previewUserValidatorToUser(userDTO));
+    return this.userRepository.save(this.previewUserValidatorToUser(userDTO, organization));
   }
 
-  public update(id: string, userDTO: PreviewUserValidator, logger: UpgradeLogger): Promise<PreviewUser> {
+  public update(
+    id: string,
+    userDTO: PreviewUserValidator,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<PreviewUser> {
     logger.info({ message: `Update a preview user => ${userDTO.toString()}` });
     userDTO.id = id;
-    return this.userRepository.save(this.previewUserValidatorToUser(userDTO));
+    return this.userRepository.save(this.previewUserValidatorToUser(userDTO, organization));
   }
 
   public async delete(id: string, logger: UpgradeLogger): Promise<PreviewUser | undefined> {
@@ -77,11 +87,12 @@ export class PreviewUserService {
 
   public async upsertExperimentConditionAssignment(
     previewUserDTO: PreviewUserValidator,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<PreviewUser | undefined> {
     logger.info({ message: `Upsert Experiment Condition Assignment ${JSON.stringify(previewUserDTO, undefined, 1)}` });
 
-    const previewUser = this.previewUserValidatorToUser(previewUserDTO);
+    const previewUser = this.previewUserValidatorToUser(previewUserDTO, organization);
     const previewDocumentWithOldAssignments = await this.findOne(previewUser.id, logger);
     const newAssignments = previewUser.assignments;
 
@@ -126,7 +137,7 @@ export class PreviewUserService {
     return getDocument;
   }
 
-  private previewUserValidatorToUser(userDTO: PreviewUserValidator): PreviewUser {
+  private previewUserValidatorToUser(userDTO: PreviewUserValidator, organization: Organization): PreviewUser {
     const user = new PreviewUser();
     user.id = userDTO.id;
     user.assignments = userDTO.assignments?.map((assignmentDTO) => {
@@ -136,6 +147,7 @@ export class PreviewUserService {
       assignment.experimentCondition = assignmentDTO.experimentCondition;
       return assignment;
     });
+    user.organization = organization;
     return user;
   }
 }

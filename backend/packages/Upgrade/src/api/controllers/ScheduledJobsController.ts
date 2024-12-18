@@ -44,7 +44,7 @@ export class ScheduledJobsController {
     scheduledParams: ScheduledJobsParamsValidator,
     @Req() request: AppRequest
   ): Promise<any> {
-    return this.scheduledJobService.startExperiment(scheduledParams.id, request.logger);
+    return this.scheduledJobService.startExperiment(scheduledParams.id, request.logger, request.user?.organization);
   }
 
   /**
@@ -80,7 +80,7 @@ export class ScheduledJobsController {
     scheduledParams: ScheduledJobsParamsValidator,
     @Req() request: AppRequest
   ): Promise<any> {
-    return this.scheduledJobService.endExperiment(scheduledParams.id, request.logger);
+    return this.scheduledJobService.endExperiment(scheduledParams.id, request.logger, request.user.organization);
   }
 
   /**

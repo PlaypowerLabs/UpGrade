@@ -4,6 +4,7 @@ import { EntityRepository } from '../../typeorm-typedi-extensions';
 import { LOG_TYPE } from 'upgrade_types';
 import { UserDTO } from '../DTO/UserDTO';
 import repositoryError from './utils/repositoryError';
+import { Organization } from '../models/Organization';
 
 @EntityRepository(ExperimentAuditLog)
 export class ExperimentAuditLogRepository extends Repository<ExperimentAuditLog> {
@@ -15,18 +16,8 @@ export class ExperimentAuditLogRepository extends Repository<ExperimentAuditLog>
   ): Promise<ExperimentAuditLog[]> {
     let queryBuilder = this.createQueryBuilder('audit')
       .leftJoinAndSelect('audit.user', 'user')
-      .leftJoinAndSelect('audit.experiment', 'experiment')
-      .leftJoinAndSelect('experiment.organization', 'experimentOrganization')
-      .leftJoinAndSelect('audit.featureFlag', 'featureFlag')
-      .leftJoinAndSelect('featureFlag.organization', 'featureFlagOrganization')
-      .where(
-        new Brackets((qb) => {
-          qb.where('experimentOrganization.id = :organizationId', { organizationId }).orWhere(
-            'featureFlagOrganization.id = :organizationId',
-            { organizationId }
-          );
-        })
-      )
+      .leftJoinAndSelect('audit.organization', 'organization')
+      .where('organization.id = :organizationId', { organizationId })
       .offset(offset)
       .limit(limit)
       .orderBy('audit.createdAt', 'DESC');
@@ -55,18 +46,25 @@ export class ExperimentAuditLogRepository extends Repository<ExperimentAuditLog>
     type: LOG_TYPE,
     data: any,
     user: UserDTO,
+    organization: Organization,
     entityManger?: EntityManager
   ): Promise<ExperimentAuditLog> {
     const that = entityManger || this;
+
     const result = await that
       .createQueryBuilder()
       .insert()
       .into(ExperimentAuditLog)
-      .values({ type, data, user })
+      .values({ type, data, user, organization })
       .returning('*')
       .execute()
       .catch((error: any) => {
-        const errorMsg = repositoryError('ExperimentAuditLogRepository', 'saveRawJson', { type, data, user }, error);
+        const errorMsg = repositoryError(
+          'ExperimentAuditLogRepository',
+          'saveRawJson',
+          { type, data, user, organization },
+          error
+        );
         throw errorMsg;
       });
 

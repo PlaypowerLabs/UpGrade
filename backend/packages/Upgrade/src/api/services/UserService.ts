@@ -1,3 +1,4 @@
+import { Organization } from './../models/Organization';
 import { Service } from 'typedi';
 import { InjectRepository } from '../../typeorm-typedi-extensions';
 import { UserRepository } from '../repositories/UserRepository';
@@ -28,7 +29,7 @@ export class UserService {
     this.emails = new Emails();
   }
 
-  public async upsertUser(userDTO: UserDTO, logger: UpgradeLogger): Promise<User> {
+  public async upsertUser(userDTO: UserDTO, logger: UpgradeLogger, organization: Organization): Promise<User> {
     const user = new User();
     user.email = userDTO.email;
     user.firstName = userDTO.firstName;
@@ -43,6 +44,7 @@ export class UserService {
       auditLog.type = auditLogDTO.type;
       return auditLog;
     });
+    user.organization = organization ? organization : null;
 
     logger.info({ message: `Upsert a new user => ${JSON.stringify(user, undefined, 2)}` });
 
