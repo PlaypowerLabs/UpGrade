@@ -17,6 +17,7 @@ import { ErrorWithType } from '../errors/ErrorWithType';
 import { Emails } from '../../templates/email';
 import { UserDTO } from '../DTO/UserDTO';
 import { ExperimentAuditLog } from '../models/ExperimentAuditLog';
+import { OrganizationService } from './OrganizationService';
 
 @Service()
 export class UserService {
@@ -24,7 +25,8 @@ export class UserService {
   constructor(
     @InjectRepository()
     private userRepository: UserRepository,
-    public awsService: AWSService
+    public awsService: AWSService,
+    public organizationService: OrganizationService
   ) {
     this.emails = new Emails();
   }
@@ -37,6 +39,7 @@ export class UserService {
     user.role = userDTO.role;
     user.imageUrl = userDTO.imageUrl;
     user.localTimeZone = userDTO.localTimeZone;
+    user.organization = null;
     user.auditLogs = userDTO.auditLogs?.map((auditLogDTO) => {
       const auditLog = new ExperimentAuditLog();
       auditLog.data = auditLogDTO.data;
@@ -44,7 +47,12 @@ export class UserService {
       auditLog.type = auditLogDTO.type;
       return auditLog;
     });
-    user.organization = organization ? organization : null;
+
+    if (organization) {
+      user.organization = organization;
+    } else {
+      user.organization = await this.organizationService.addOrganization(user.email, logger);
+    }
 
     logger.info({ message: `Upsert a new user => ${JSON.stringify(user, undefined, 2)}` });
 

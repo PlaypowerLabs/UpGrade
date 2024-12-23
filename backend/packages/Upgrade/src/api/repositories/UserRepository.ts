@@ -11,18 +11,19 @@ export class UserRepository extends Repository<User> {
       .insert()
       .into(User)
       .values(user)
-      .orUpdate(['firstName', 'lastName', 'imageUrl', 'localTimeZone'], ['email'])
+      .orUpdate(['firstName', 'lastName', 'imageUrl', 'localTimeZone', 'organizationId'], ['email'])
       .setParameter('firstName', user.firstName)
       .setParameter('lastName', user.lastName)
       .setParameter('imageUrl', user.imageUrl)
       .setParameter('localTimeZone', user.localTimeZone)
-      .setParameter('organization', user.organization)
+      .setParameter('organizationId', user.organization?.id)
       .returning('*')
       .execute()
       .catch((errorMsg: any) => {
         const errorMsgString = repositoryError('UserRepository', 'upsertUser', { user }, errorMsg);
         throw errorMsgString;
       });
+
     return result.raw[0];
   }
 
