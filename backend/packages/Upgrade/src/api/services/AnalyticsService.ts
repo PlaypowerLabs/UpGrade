@@ -34,7 +34,7 @@ import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import { ExperimentService } from './ExperimentService';
 import { QueryService } from './QueryService';
-import { HttpError } from '../errors';
+import { HttpError } from 'routing-controllers';
 import { Organization } from '../models/Organization';
 
 dayjs.extend(utc);
@@ -237,11 +237,6 @@ export class AnalyticsService {
       }
 
       const queryData = await this.logRepository.getLogPerExperimentQuery(experimentId);
-      // query name id mapping
-      const queryNameIdMapping: Record<string, string> = {};
-      queryData.forEach((singleRecord) => {
-        queryNameIdMapping[singleRecord.id] = singleRecord.name;
-      });
 
       type queryDataArrayType = typeof queryData;
       type queryDataType = queryDataArrayType[0];
@@ -267,7 +262,6 @@ export class AnalyticsService {
             const repeatedMeasure = groupedUser[userId][queryId][0].repeatedMeasure;
             const key = groupedUser[userId][queryId][0].key;
             const type = groupedUser[userId][queryId][0].type;
-            let metricKey;
 
             const keySplitArray = key.split(METRICS_JOIN_TEXT);
             logsUser[userId] = logsUser[userId] || {};
@@ -283,7 +277,6 @@ export class AnalyticsService {
                   },
                   undefined
                 ).data;
-                metricKey = Object.keys(jsonLog);
                 if (type === IMetricMetaData.CONTINUOUS) {
                   logsUser[userId][queryId] = +keySplitArray.reduce(
                     (accumulator, attribute: string) => accumulator[attribute],
@@ -307,7 +300,6 @@ export class AnalyticsService {
                   },
                   undefined
                 ).data;
-                metricKey = Object.keys(jsonLog);
                 if (type === IMetricMetaData.CONTINUOUS) {
                   logsUser[userId][queryId] = +keySplitArray.reduce(
                     (accumulator, attribute: string) => accumulator[attribute],
@@ -329,37 +321,22 @@ export class AnalyticsService {
                 break;
               }
             }
-            logsUser[userId][queryId] = metricKey[0] + ': ' + logsUser[userId][queryId];
+            logsUser[userId][queryId] = keySplitArray.join('->') + ': ' + logsUser[userId][queryId];
           }
         }
-      }
-
-      const allQuery = await this.queryService.find(new UpgradeLogger());
-      let queryNames: string[] = [];
-      if (allQuery) {
-        queryNames = allQuery.map((query) => {
-          return query.name;
-        });
       }
       // merge with data
       const csvRows = csvExportData.map((row) => {
         const queryObject = logsUser[row.userId] || {};
         const queryDataToAdd = {};
 
-        if (Object.keys(queryObject).length) {
-          for (const queryId in queryObject) {
-            if (queryObject[queryId]) {
-              const queryName = queryNameIdMapping[queryId];
-              if (queryName) {
-                queryDataToAdd[queryName] = queryObject[queryId];
-              }
-            }
+        queryData.forEach((query) => {
+          if (queryObject[query.id]) {
+            queryDataToAdd[query.name] = queryObject[query.id];
+          } else {
+            queryDataToAdd[query.name] = '';
           }
-        } else {
-          queryNames.forEach((queryName) => {
-            queryDataToAdd[queryName] = '';
-          });
-        }
+        });
 
         const revertToCondition = row.revertTo ? row.revertTo : 'Default';
         const postRule = row.postRule === 'assign' ? `Assign: ${revertToCondition}` : 'Continue';
@@ -461,10 +438,10 @@ export class AnalyticsService {
         });
 
       const emailText = `Hey,
-      <br>
-      Here is the exported experiment data:
-      <br>
-      <a href="${signedURLMonitored}">Monitored Experiment Data</a>`;
+        <br>
+        Here is the exported experiment data:
+        <br>
+        <a href="${signedURLMonitored}">Monitored Experiment Data</a>`;
 
       const emailSubject = `Exported Data for the experiment: ${experimentDetails[0].experimentName}`;
       // send email to the user

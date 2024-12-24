@@ -2,7 +2,7 @@ import { Organization } from './../models/Organization';
 /* eslint-disable no-var */
 import { GroupExclusion } from './../models/GroupExclusion';
 import { ErrorWithType } from './../errors/ErrorWithType';
-import { Service } from 'typedi';
+import { Inject, Service } from 'typedi';
 import { InjectDataSource, InjectRepository } from '../../typeorm-typedi-extensions';
 import { ExperimentRepository } from '../repositories/ExperimentRepository';
 import {
@@ -74,6 +74,7 @@ import {
   ParticipantsValidator,
   ExperimentFile,
   ValidatedExperimentError,
+  OldExperimentDTO,
 } from '../DTO/ExperimentDTO';
 import { ConditionPayloadDTO } from '../DTO/ConditionPayloadDTO';
 import { FactorDTO } from '../DTO/FactorDTO';
@@ -86,6 +87,7 @@ import { validate } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { StratificationFactorRepository } from '../repositories/StratificationFactorRepository';
 import { ExperimentDetailsForCSVData } from '../repositories/AnalyticsRepository';
+import { compare } from 'compare-versions';
 
 const errorRemovePart = 'instance of ExperimentDTO has failed the validation:\n - ';
 const stratificationErrorMessage =
@@ -122,6 +124,7 @@ export class ExperimentService {
     @InjectDataSource() private dataSource: DataSource,
     public previewUserService: PreviewUserService,
     public segmentService: SegmentService,
+    @Inject(() => ScheduledJobService)
     public scheduledJobService: ScheduledJobService,
     public errorService: ErrorService,
     public cacheService: CacheService,
@@ -171,11 +174,17 @@ export class ExperimentService {
         .addSelect(`ts_rank_cd(to_tsvector('english',${postgresSearchString}), to_tsquery(:query))`, 'rank')
         .addOrderBy('rank', 'DESC')
         .setParameter('query', `${customSearchString}:*`);
+    }
+    if (sortParams) {
+      queryBuilder = queryBuilder.addOrderBy(`LOWER(CAST(experiment.name AS TEXT))`, sortParams.sortAs);
     } else {
       queryBuilder = queryBuilder.addOrderBy('experiment.updatedAt', 'DESC');
     }
 
     let expIds = (await queryBuilder.getMany()).map((exp) => exp.id);
+    // manually paginating the data
+    // there is an active issue in typeorm where we can't use skip and take with orderby
+    expIds = expIds.slice(skip, skip + take);
     expIds = Array.from(new Set(expIds));
 
     // Second Query Builder
@@ -422,6 +431,20 @@ export class ExperimentService {
     return [...conditionIds, ...decisionPointsIds];
   }
 
+  public async prepareStateTimeLogDoc(
+    experimentDoc: Experiment,
+    fromState: EXPERIMENT_STATE,
+    toState: EXPERIMENT_STATE
+  ) {
+    const stateTimeLogDoc = new StateTimeLog();
+    stateTimeLogDoc.id = uuid();
+    stateTimeLogDoc.fromState = fromState;
+    stateTimeLogDoc.toState = toState;
+    stateTimeLogDoc.timeLog = new Date();
+    stateTimeLogDoc.experiment = experimentDoc;
+    return stateTimeLogDoc;
+  }
+
   public async updateState(
     experimentId: string,
     state: EXPERIMENT_STATE,
@@ -485,14 +508,7 @@ export class ExperimentService {
       entityManager
     );
 
-    const timeLogDate = new Date();
-
-    const stateTimeLogDoc = new StateTimeLog();
-    stateTimeLogDoc.id = uuid();
-    stateTimeLogDoc.fromState = oldExperiment.state;
-    stateTimeLogDoc.toState = state;
-    stateTimeLogDoc.timeLog = timeLogDate;
-    stateTimeLogDoc.experiment = oldExperiment;
+    const stateTimeLogDoc = await this.prepareStateTimeLogDoc(oldExperiment, oldExperiment.state, state);
 
     // updating the experiment and stateTimeLog
     const stateTimeLogRepo = entityManager ? entityManager.getRepository(StateTimeLog) : this.stateTimeLogsRepository;
@@ -583,14 +599,14 @@ export class ExperimentService {
   }
 
   public async exportExperiment(
-    experimentIds: string[],
     user: UserDTO,
     logger: UpgradeLogger,
-    organization: Organization
+    organization: Organization,
+    experimentIds?: string[]
   ): Promise<Experiment[]> {
     logger.info({ message: `Inside export Experiment JSON ${experimentIds}` });
     const experimentDetails = await this.experimentRepository.find({
-      where: { id: In(experimentIds) },
+      where: experimentIds ? { id: In(experimentIds) } : undefined,
       relations: [
         'partitions',
         'conditions',
@@ -819,6 +835,13 @@ export class ExperimentService {
         let experimentDoc: Experiment;
         try {
           experimentDoc = await transactionalEntityManager.getRepository(Experiment).save(expDoc);
+          // Store state time log for the experiment
+          const stateTimeLogDoc = await this.prepareStateTimeLogDoc(
+            experimentDoc,
+            oldExperiment.state,
+            experimentDoc.state
+          );
+          await transactionalEntityManager.getRepository(StateTimeLog).save(stateTimeLogDoc);
         } catch (err) {
           const error = err as ErrorWithType;
           error.details = `Error in updating experiment document "updateExperimentInDB"`;
@@ -1270,6 +1293,15 @@ export class ExperimentService {
       let experimentDoc: Experiment;
       try {
         experimentDoc = await transactionalEntityManager.getRepository(Experiment).save(expDocWithOrg);
+        // Store state time log for the experiment in enrolling state.
+        if (experimentDoc.state !== EXPERIMENT_STATE.INACTIVE) {
+          const stateTimeLogDoc = await this.prepareStateTimeLogDoc(
+            experimentDoc,
+            EXPERIMENT_STATE.INACTIVE,
+            experimentDoc.state
+          );
+          await transactionalEntityManager.getRepository(StateTimeLog).save(stateTimeLogDoc);
+        }
       } catch (err) {
         const error = err as ErrorWithType;
         error.details = 'Error in adding experiment in DB';
@@ -1575,7 +1607,14 @@ export class ExperimentService {
         } catch (error) {
           return { fileName: experimentFile.fileName, error: 'Invalid JSON' };
         }
-        const newExperiment = plainToClass(ExperimentDTO, experiment);
+
+        let newExperiment: ExperimentDTO;
+        if (compare(experiment.backendVersion, '5.3.0', '>=')) {
+          newExperiment = plainToClass(ExperimentDTO, experiment);
+        } else {
+          newExperiment = plainToClass(ExperimentDTO, this.experimentPayloadConverter(experiment));
+        }
+
         if (!(newExperiment instanceof ExperimentDTO)) {
           return { fileName: experimentFile.fileName, error: 'Invalid JSON' };
         }
@@ -1617,6 +1656,19 @@ export class ExperimentService {
         }
       })
       .filter((error) => error !== null);
+  }
+
+  private experimentPayloadConverter(experiment: OldExperimentDTO): ExperimentDTO {
+    const updatedExperimentPayload = experiment.conditionPayloads.map((conditionPayload) => {
+      return {
+        ...conditionPayload,
+        parentCondition: conditionPayload.parentCondition.id,
+        decisionPoint: conditionPayload.decisionPoint.id,
+      };
+    });
+
+    const newExperiment: ExperimentDTO = { ...experiment, conditionPayloads: updatedExperimentPayload };
+    return newExperiment;
   }
 
   private async validateExperimentJSON(experiment: ExperimentDTO): Promise<string> {
