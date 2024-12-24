@@ -1,9 +1,10 @@
-import { Entity, Column, PrimaryColumn, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryColumn, OneToMany, ManyToOne } from 'typeorm';
 import { BaseModel } from './base/BaseModel';
 import { IsUrl, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ExperimentAuditLog } from './ExperimentAuditLog';
 import { UserRole } from 'upgrade_types';
+import { Organization } from './Organization';
 
 @Entity()
 export class User extends BaseModel {
@@ -36,4 +37,7 @@ export class User extends BaseModel {
   @OneToMany(() => ExperimentAuditLog, (auditLog) => auditLog.user)
   @Type(() => ExperimentAuditLog)
   public auditLogs?: ExperimentAuditLog[];
+
+  @ManyToOne(() => Organization, (organization) => organization.user)
+  public organization: Organization;
 }

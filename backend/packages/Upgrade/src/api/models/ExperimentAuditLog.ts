@@ -1,3 +1,4 @@
+import { Organization } from './Organization';
 import { BaseModel } from './base/BaseModel';
 import { PrimaryGeneratedColumn, Column, Entity, ManyToOne } from 'typeorm';
 import { IsNotEmpty } from 'class-validator';
@@ -15,6 +16,9 @@ export class ExperimentAuditLog extends BaseModel {
     enum: LOG_TYPE,
   })
   public type: LOG_TYPE;
+
+  @ManyToOne(() => Organization, (organization) => organization.auditLogs, { onDelete: 'CASCADE' })
+  public organization: Organization;
 
   @ManyToOne(() => User, (user) => user.auditLogs, { onDelete: 'CASCADE' })
   public user: User;

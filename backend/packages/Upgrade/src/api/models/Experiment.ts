@@ -27,6 +27,8 @@ import { ExperimentSegmentExclusion } from './ExperimentSegmentExclusion';
 import { ConditionPayload } from 'src/api/models/ConditionPayload';
 import { Factor } from './Factor';
 import { StratificationFactor } from './StratificationFactor';
+import { Organization } from './Organization';
+import { ExperimentAuditLog } from './ExperimentAuditLog';
 
 export {
   EXPERIMENT_SEARCH_KEY,
@@ -171,4 +173,7 @@ export class Experiment extends BaseModel {
     default: EXPERIMENT_TYPE.SIMPLE,
   })
   public type: EXPERIMENT_TYPE;
+
+  @ManyToOne(() => Organization, (organization) => organization.experiment)
+  public organization: Organization;
 }
