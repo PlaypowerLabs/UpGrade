@@ -48,15 +48,20 @@ export class UserService {
       return auditLog;
     });
 
+    const isUserExists = await this.userRepository.find({
+      where: { email: user.email },
+      relations: ['organization'],
+    });
     if (organization) {
       user.organization = organization;
+    } else if (isUserExists[0]?.organization) {
+      user.organization = isUserExists[0]?.organization;
     } else {
       user.organization = await this.organizationService.addOrganization(user.email, logger);
     }
 
     logger.info({ message: `Upsert a new user => ${JSON.stringify(user, undefined, 2)}` });
 
-    const isUserExists = await this.userRepository.find({ where: { email: user.email } });
     const response = await this.userRepository.upsertUser(user);
     if (!isUserExists && response) {
       this.sendWelcomeEmail(user.email);
