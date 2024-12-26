@@ -26,4 +26,9 @@ export class OrganizationService {
       return response;
     }
   }
+
+  public async getOrganizationById(id: string, logger: UpgradeLogger): Promise<Organization> {
+    logger.info({ message: `Get organization by id => ${id}` });
+    return this.organizationRepository.getOrganizationById(id);
+  }
 }

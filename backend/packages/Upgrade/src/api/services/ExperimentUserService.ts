@@ -270,7 +270,7 @@ export class ExperimentUserService {
     try {
       const userDoc = await this.userRepository.find({
         where: { id: userId },
-        relations: ['originalUser'],
+        relations: ['originalUser', 'organization'],
       });
       if (userDoc.length) {
         if (userDoc[0].originalUser) {

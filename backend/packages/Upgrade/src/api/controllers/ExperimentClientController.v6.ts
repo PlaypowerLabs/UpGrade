@@ -34,6 +34,7 @@ import { Log } from '../models/Log';
 import { ExperimentUserValidatorv6 } from './validators/ExperimentUserValidator';
 import { UserCheckMiddleware } from '../middlewares/UserCheckMiddleware';
 import { ClientAppRequest } from 'src/types';
+import { OrganizationService } from '../services/OrganizationService';
 
 interface IMonitoredDecisionPoint {
   id: string;
@@ -101,7 +102,8 @@ export class ExperimentClientController {
     public experimentAssignmentService: ExperimentAssignmentService,
     public experimentUserService: ExperimentUserService,
     public featureFlagService: FeatureFlagService,
-    public metricService: MetricService
+    public metricService: MetricService,
+    public organizationService: OrganizationService
   ) {}
 
   /**
@@ -181,15 +183,19 @@ export class ExperimentClientController {
     // then we will fetch the stored values of the field and return them in the response
     // for consistent init response with 3 fields ['userId', 'group', 'workingGroup']
     const { id = request.get('User-Id'), group, workingGroup } = { ...experimentUserDoc, ...experimentUser };
+    const orgId = experimentUserDoc?.organization.id || request.get('Org-Id');
     if (experimentUserDoc) {
       // append userDoc in logger
       request.logger.child({ userDoc: experimentUserDoc });
       request.logger.info({ message: 'Got the original user doc' });
     }
 
+    // find organization details from orgId
+    const organization = await this.organizationService.getOrganizationById(orgId, request.logger);
+
     const upsertResult = await this.experimentUserService.upsertOnChange(
       experimentUserDoc,
-      { id, ...experimentUser },
+      { id, ...experimentUser, organization },
       request.logger
     );
 

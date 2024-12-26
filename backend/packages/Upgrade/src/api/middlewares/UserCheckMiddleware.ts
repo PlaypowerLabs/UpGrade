@@ -12,9 +12,16 @@ export class UserCheckMiddleware {
   public async use(req: ClientAppRequest, res: ClientAppRequest, next: express.NextFunction): Promise<any> {
     try {
       const user_id = req.get('User-Id');
+      const orgId = req.get('Org-Id');
       if (!user_id) {
         const error = new Error(`User-Id header not found.`);
         (error as any).type = SERVER_ERROR.MISSING_HEADER_USER_ID;
+        (error as any).httpCode = 400;
+        req.logger.error(error);
+        return next(error);
+      } else if (!orgId) {
+        const error = new Error(`Organization-Id header not found.`);
+        (error as any).type = SERVER_ERROR.MISSING_HEADER_ORG_ID;
         (error as any).httpCode = 400;
         req.logger.error(error);
         return next(error);
@@ -22,6 +29,7 @@ export class UserCheckMiddleware {
         req.logger.child({ user_id });
         req.logger.debug({ message: 'User Id is:', user_id });
       }
+
       const experimentUserDoc = await this.experimentUserService.getUserDoc(user_id, req.logger);
       if (!req.url.endsWith('/init') && !experimentUserDoc) {
         const error = new Error(`User not found: ${user_id}`);
