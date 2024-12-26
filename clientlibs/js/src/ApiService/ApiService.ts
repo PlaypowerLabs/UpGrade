@@ -17,6 +17,7 @@ export default class ApiService {
   private apiVersion: string;
   private clientSessionId: string;
   private httpClient: UpGradeClientInterfaces.IHttpClientWrapper;
+  private organizationId: string;
   private api: IEndpoints;
 
   constructor(config: UpGradeClientInterfaces.IConfig, private dataService: DataService) {
@@ -26,6 +27,7 @@ export default class ApiService {
     this.clientSessionId = config.clientSessionId;
     this.userId = config.userId;
     this.apiVersion = config.apiVersion;
+    this.organizationId = config.organizationId;
     this.api = {
       init: `${this.hostUrl}/api/${this.apiVersion}/init`,
       getAllExperimentConditions: `${this.hostUrl}/api/${this.apiVersion}/assign`,
@@ -83,6 +85,7 @@ export default class ApiService {
         'Client-source': IS_BROWSER ? 'browser' : 'node',
         URL: url,
         'User-Id': this.userId,
+        'Org-Id': this.organizationId,
       },
     };
 

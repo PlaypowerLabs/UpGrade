@@ -70,13 +70,14 @@ export default class UpgradeClient {
    * ```
    */
 
-  constructor(userId: string, hostUrl: string, context: string, options?: IConfigOptions) {
+  constructor(userId: string, hostUrl: string, context: string, orgId: string, options?: IConfigOptions) {
     const config: UpGradeClientInterfaces.IConfig = {
       apiVersion: 'v' + API_VERSION,
       userId: userId,
       hostURL: hostUrl,
       context: context,
       clientSessionId: options?.clientSessionId || uuidv4(),
+      organizationId: orgId,
       token: options?.token,
       httpClient: options?.httpClient,
     };
