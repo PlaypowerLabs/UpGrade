@@ -267,10 +267,10 @@ export class ExperimentService {
     };
   }
 
-  public async getCachedValidExperiments(context: string) {
+  public async getCachedValidExperiments(context: string, orgId: string) {
     const cacheKey = CACHE_PREFIX.EXPERIMENT_KEY_PREFIX + context;
     return this.cacheService
-      .wrap(cacheKey, this.experimentRepository.getValidExperiments.bind(this.experimentRepository, context))
+      .wrap(cacheKey, this.experimentRepository.getValidExperiments.bind(this.experimentRepository, context, orgId))
       .then((validExperiment) => {
         return JSON.parse(JSON.stringify(validExperiment));
       });

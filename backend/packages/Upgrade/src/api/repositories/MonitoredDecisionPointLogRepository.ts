@@ -10,6 +10,7 @@ export class MonitoredDecisionPointLogRepository extends Repository<MonitoredDec
     userId: string,
     site: string[],
     target: string[],
+    organizationId: string,
     logger: UpgradeLogger
   ): Promise<any> {
     const result = await this.createQueryBuilder('mdpLog')
@@ -19,6 +20,7 @@ export class MonitoredDecisionPointLogRepository extends Repository<MonitoredDec
       .where('mdp.userId = :userId', { userId })
       .andWhere('mdp.site IN (:...site)', { site })
       .andWhere('mdp.target IN (:...target)', { target })
+      .andWhere('mdp.organizationId = :organizationId', { organizationId })
       .groupBy('mdp.userId , mdp.site , mdp.target, mdp.id')
       .getRawMany()
       .catch((errorMsg: any) => {

@@ -11,7 +11,7 @@ const mockHttpClient = {
 describe('UpgradeClient', () => {
   let upgradeClient: UpgradeClient;
   beforeEach(() => {
-    upgradeClient = new UpgradeClient('1234', 'test.com', 'testContext', { httpClient: mockHttpClient });
+    upgradeClient = new UpgradeClient('1234', 'test.com', 'testContext', 'abc', { httpClient: mockHttpClient });
   });
 
   describe('#init', () => {

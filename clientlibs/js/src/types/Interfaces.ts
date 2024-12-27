@@ -7,6 +7,7 @@ export namespace UpGradeClientInterfaces {
     userId: string;
     context: string;
     apiVersion: string;
+    organizationId: string;
     clientSessionId?: string;
     token?: string;
     httpClient?: UpGradeClientInterfaces.IHttpClientWrapper;

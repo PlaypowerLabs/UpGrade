@@ -24,4 +24,14 @@ export class OrganizationRepository extends Repository<Organization> {
 
     return result.raw[0];
   }
+
+  public async getOrganizationById(id: string): Promise<Organization> {
+    return this.createQueryBuilder('organization')
+      .where('id=:id', { id })
+      .getOne()
+      .catch((errorMsg: any) => {
+        const errorMsgString = repositoryError('OrganizationRepository', 'getOrganizationById', { id }, errorMsg);
+        throw errorMsgString;
+      });
+  }
 }

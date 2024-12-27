@@ -67,6 +67,7 @@ export enum SERVER_ERROR {
   UNSUPPORTED_CALIPER = 'Caliper profile or event not supported',
   DUPLICATE_KEY = 'Feature Flag with same key already exists for this app-context',
   MISSING_HEADER_USER_ID = 'Missing `User-Id` header',
+  MISSING_HEADER_ORG_ID = 'Missing `Org-Id` header',
 }
 
 export enum MARKED_DECISION_POINT_STATUS {

@@ -131,6 +131,7 @@ export class ExperimentAssignmentService {
     }
 
     const userId = userDoc.id;
+    const organizationId = userDoc.organization.id;
     const previewUser: PreviewUser = await this.previewUserService.findOne(userId, logger);
 
     // search decision points in experiments cache
@@ -140,12 +141,14 @@ export class ExperimentAssignmentService {
         where: {
           site: site,
           target: target,
+          experiment: { organization: { id: organizationId } },
         },
         relations: [
           'experiment',
           'experiment.conditions',
           'experiment.conditions.conditionPayloads',
           'experiment.partitions',
+          'experiment.organization',
           'experiment.experimentSegmentInclusion',
           'experiment.experimentSegmentExclusion',
           'experiment.experimentSegmentInclusion.segment',
@@ -207,6 +210,7 @@ export class ExperimentAssignmentService {
         site: site,
         target: target,
         user: { id: userDoc.id },
+        organization: { id: organizationId },
       },
     });
 
@@ -306,7 +310,7 @@ export class ExperimentAssignmentService {
           condition
         );
         if (experiment.enrollmentCompleteCondition) {
-          await this.checkEnrollmentEndingCriteriaForCount(experiment, logger);
+          await this.checkEnrollmentEndingCriteriaForCount(experiment, organizationId, logger);
         }
       }
     }
@@ -322,6 +326,7 @@ export class ExperimentAssignmentService {
       user: userDoc,
       site: site,
       target: target,
+      organization: userDoc.organization,
     });
 
     // save monitored log document
@@ -344,6 +349,7 @@ export class ExperimentAssignmentService {
     logger.info({ message: `getAllExperimentConditions: User: ${experimentUserDoc?.requestedUserId}` });
     const userId = experimentUserDoc?.id;
     const previewUser = await this.previewUserService.findOne(userId, logger);
+    const orgId = experimentUserDoc.organization.id;
     const experimentUser: ExperimentUser = experimentUserDoc as ExperimentUser;
 
     // query all experiment and sub experiment
@@ -351,9 +357,9 @@ export class ExperimentAssignmentService {
     let experiments: Experiment[] = [];
 
     if (previewUser) {
-      experiments = await this.experimentRepository.getValidExperimentsWithPreview(context);
+      experiments = await this.experimentRepository.getValidExperimentsWithPreview(context, orgId);
     } else {
-      experiments = await this.experimentService.getCachedValidExperiments(context);
+      experiments = await this.experimentService.getCachedValidExperiments(context, orgId);
     }
     experiments = experiments.map((exp) => this.experimentService.formatingConditionPayload(exp));
 
@@ -552,6 +558,7 @@ export class ExperimentAssignmentService {
           userId,
           allWithinSubjectsSites,
           allWithinSubjectsTargets,
+          orgId,
           logger
         );
       }
@@ -1020,7 +1027,10 @@ export class ExperimentAssignmentService {
     return [...updatedLog.flat(), ...newLogData];
   }
 
-  private async getMonitoredDocumentOfExperiment(experimentDoc: Experiment): Promise<MonitoredDecisionPoint[]> {
+  private async getMonitoredDocumentOfExperiment(
+    experimentDoc: Experiment,
+    organizationId: string
+  ): Promise<MonitoredDecisionPoint[]> {
     // get groupAssignment and individual assignment details
     const decisionPoints = experimentDoc.partitions;
     const individualAssignments = await this.individualEnrollmentRepository.find({
@@ -1050,6 +1060,7 @@ export class ExperimentAssignmentService {
               site: (await experimentDecisionPointId).site,
               target: (await experimentDecisionPointId).target,
               user: { id: individualAssignment.user.id },
+              organization: { id: organizationId },
             },
           })
         );
@@ -1070,7 +1081,11 @@ export class ExperimentAssignmentService {
    * of group count and participants count defined in experiment
    * experiment - Experiment definition
    */
-  private async checkEnrollmentEndingCriteriaForCount(experiment: Experiment, logger: UpgradeLogger): Promise<void> {
+  private async checkEnrollmentEndingCriteriaForCount(
+    experiment: Experiment,
+    organizationId: string,
+    logger: UpgradeLogger
+  ): Promise<void> {
     const { enrollmentCompleteCondition } = experiment;
     const { groupCount, userCount } = enrollmentCompleteCondition;
     /**
@@ -1103,7 +1118,7 @@ export class ExperimentAssignmentService {
         experiment.id
       );
       // fetch all the monitored document if exist
-      const monitoredDocuments = await this.getMonitoredDocumentOfExperiment(experiment);
+      const monitoredDocuments = await this.getMonitoredDocumentOfExperiment(experiment, organizationId);
       const userIds = monitoredDocuments.map((doc) => {
         return doc.user.id;
       });

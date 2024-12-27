@@ -116,14 +116,15 @@ export class ExperimentRepository extends Repository<Experiment> {
       });
   }
 
-  public async getValidExperiments(context: string): Promise<Experiment[]> {
+  public async getValidExperiments(context: string, organizationId: string): Promise<Experiment[]> {
     const whereExperimentsClause =
-      '(experiment.state = :enrolling OR experiment.state = :enrollmentComplete) AND NOT (experiment.state = :enrollmentComplete AND experiment.postExperimentRule = :assign AND experiment.revertTo IS NULL) AND :context ILIKE ANY (ARRAY[experiment.context])';
+      '(experiment.state = :enrolling OR experiment.state = :enrollmentComplete) AND NOT (experiment.state = :enrollmentComplete AND experiment.postExperimentRule = :assign AND experiment.revertTo IS NULL) AND :context ILIKE ANY (ARRAY[experiment.context]) AND experiment.organization.id = :organizationId';
     const whereClauseParams = {
       enrolling: 'enrolling',
       enrollmentComplete: 'enrollmentComplete',
       assign: 'assign',
       context,
+      organizationId,
     };
     const experimentConditionLevelPayloadQuery = this.createQueryBuilder('experiment')
       .leftJoinAndSelect('experiment.conditions', 'conditions')
@@ -215,15 +216,16 @@ export class ExperimentRepository extends Repository<Experiment> {
     return mergedData;
   }
 
-  public async getValidExperimentsWithPreview(context: string): Promise<Experiment[]> {
+  public async getValidExperimentsWithPreview(context: string, organizationId: string): Promise<Experiment[]> {
     const whereExperimentsClause =
-      '(experiment.state = :enrolling OR experiment.state = :enrollmentComplete OR experiment.state = :preview) AND NOT (experiment.state = :enrollmentComplete AND experiment.postExperimentRule = :assign AND experiment.revertTo IS NULL) AND :context ILIKE ANY (ARRAY[experiment.context])';
+      '(experiment.state = :enrolling OR experiment.state = :enrollmentComplete OR experiment.state = :preview) AND NOT (experiment.state = :enrollmentComplete AND experiment.postExperimentRule = :assign AND experiment.revertTo IS NULL) AND :context ILIKE ANY (ARRAY[experiment.context]) AND experiment.organization.id = :organizationId';
     const whereClauseParams = {
       enrolling: 'enrolling',
       enrollmentComplete: 'enrollmentComplete',
       preview: 'preview',
       assign: 'assign',
       context,
+      organizationId,
     };
     const experimentConditionLevelPayloadQuery = this.createQueryBuilder('experiment')
       .leftJoinAndSelect('experiment.conditions', 'conditions')
