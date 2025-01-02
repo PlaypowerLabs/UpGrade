@@ -1,3 +1,4 @@
+import { Organization } from './../models/Organization';
 import { Service } from 'typedi';
 import { InjectRepository, InjectDataSource } from '../../typeorm-typedi-extensions';
 import { SegmentRepository } from '../repositories/SegmentRepository';
@@ -95,27 +96,31 @@ export class SegmentService {
     private cacheService: CacheService
   ) {}
 
-  public async getAllSegments(logger: UpgradeLogger): Promise<Segment[]> {
+  public async getAllSegments(logger: UpgradeLogger, organizationId?: string): Promise<Segment[]> {
     logger.info({ message: `Find all segments` });
     const queryBuilder = await this.segmentRepository
       .createQueryBuilder('segment')
       .leftJoinAndSelect('segment.individualForSegment', 'individualForSegment')
       .leftJoinAndSelect('segment.groupForSegment', 'groupForSegment')
       .leftJoinAndSelect('segment.subSegments', 'subSegment')
-      .where('segment.type != :private', { private: SEGMENT_TYPE.PRIVATE })
+      .leftJoinAndSelect('segment.organization', 'organization')
+      .where('organization.id = :organizationId', { organizationId })
+      .andWhere('segment.type != :private', { private: SEGMENT_TYPE.PRIVATE })
       .getMany();
 
     return queryBuilder;
   }
 
-  public async getAllPublicSegmentsAndSubsegments(logger: UpgradeLogger): Promise<Segment[]> {
+  public async getAllPublicSegmentsAndSubsegments(logger: UpgradeLogger, organizationId: string): Promise<Segment[]> {
     logger.info({ message: `Find all segments and Subsegments` });
     const queryBuilder = await this.segmentRepository
       .createQueryBuilder('segment')
       .leftJoinAndSelect('segment.individualForSegment', 'individualForSegment')
       .leftJoinAndSelect('segment.groupForSegment', 'groupForSegment')
       .leftJoinAndSelect('segment.subSegments', 'subSegment')
-      .where('segment.type != :private', { private: SEGMENT_TYPE.PRIVATE })
+      .leftJoinAndSelect('segment.organization', 'organization')
+      .where('organization.id = :organizationId', { organizationId })
+      .andWhere('segment.type != :private', { private: SEGMENT_TYPE.PRIVATE })
       .getMany();
 
     return queryBuilder;
@@ -164,8 +169,12 @@ export class SegmentService {
     });
   }
 
-  public async getSingleSegmentWithStatus(segmentId: string, logger: UpgradeLogger): Promise<SegmentWithStatus> {
-    const allSegmentData = await this.getAllPublicSegmentsAndSubsegments(logger);
+  public async getSingleSegmentWithStatus(
+    segmentId: string,
+    logger: UpgradeLogger,
+    organizationId: string
+  ): Promise<SegmentWithStatus> {
+    const allSegmentData = await this.getAllPublicSegmentsAndSubsegments(logger, organizationId);
     const segmentData = await this.getSegmentById(segmentId, logger);
     if (segmentData) {
       const segmentWithStatus = (await this.getSegmentStatus(allSegmentData)).segmentsData.find(
@@ -177,8 +186,8 @@ export class SegmentService {
     }
   }
 
-  public async getAllSegmentWithStatus(logger: UpgradeLogger): Promise<getSegmentData> {
-    const segmentsData = await this.getAllPublicSegmentsAndSubsegments(logger);
+  public async getAllSegmentWithStatus(logger: UpgradeLogger, organizationId: string): Promise<getSegmentData> {
+    const segmentsData = await this.getAllPublicSegmentsAndSubsegments(logger, organizationId);
     return this.getSegmentStatus(segmentsData);
   }
 
@@ -293,9 +302,13 @@ export class SegmentService {
     return queryBuilder;
   }
 
-  public upsertSegment(segment: SegmentInputValidator, logger: UpgradeLogger): Promise<Segment> {
+  public upsertSegment(
+    segment: SegmentInputValidator,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<Segment> {
     logger.info({ message: `Upsert segment => ${JSON.stringify(segment, undefined, 2)}` });
-    return this.addSegmentDataInDB(segment, logger);
+    return this.addSegmentDataInDB(segment, logger, organization);
   }
 
   public async addList(listInput: ListInputValidator, logger: UpgradeLogger): Promise<Segment> {
@@ -320,10 +333,11 @@ export class SegmentService {
   public upsertSegmentInPipeline(
     segment: SegmentInputValidator,
     logger: UpgradeLogger,
+    organization: Organization,
     transactionalEntityManager: EntityManager
   ): Promise<Segment> {
     logger.info({ message: `Upsert segment => ${JSON.stringify(segment, undefined, 2)}` });
-    return this.addSegmentDataWithPipeline(segment, logger, transactionalEntityManager);
+    return this.addSegmentDataWithPipeline(segment, logger, organization, transactionalEntityManager);
   }
 
   public async deleteSegment(id: string, logger: UpgradeLogger): Promise<Segment> {
@@ -365,14 +379,18 @@ export class SegmentService {
     return validationErrors;
   }
 
-  public async importSegments(segments: SegmentFile[], logger: UpgradeLogger): Promise<SegmentImportError[]> {
+  public async importSegments(
+    segments: SegmentFile[],
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<SegmentImportError[]> {
     const validatedSegments = await this.checkSegmentsValidity(segments);
     for (const segment of validatedSegments.segments) {
       // Giving new id to avoid segment duplication
       segment.id = uuid();
 
       logger.info({ message: `Import segment => ${JSON.stringify(segment, undefined, 2)}` });
-      await this.addSegmentDataInDB(segment, logger);
+      await this.addSegmentDataInDB(segment, logger, organization);
     }
     return validatedSegments.importErrors;
   }
@@ -579,10 +597,14 @@ export class SegmentService {
     return segmentExportObj;
   }
 
-  async addSegmentDataInDB(segment: SegmentInputValidator, logger: UpgradeLogger): Promise<Segment> {
+  async addSegmentDataInDB(
+    segment: SegmentInputValidator,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<Segment> {
     const manager = this.dataSource;
     const createdSegment = await manager.transaction(async (transactionalEntityManager) => {
-      return this.addSegmentDataWithPipeline(segment, logger, transactionalEntityManager);
+      return this.addSegmentDataWithPipeline(segment, logger, organization, transactionalEntityManager);
     });
 
     return createdSegment;
@@ -591,6 +613,7 @@ export class SegmentService {
   async addSegmentDataWithPipeline(
     segment: SegmentInputValidator,
     logger: UpgradeLogger,
+    organization: Organization,
     transactionalEntityManager: EntityManager
   ): Promise<Segment> {
     let segmentDoc: Segment;
@@ -659,6 +682,7 @@ export class SegmentService {
         type,
         listType,
         subSegments: subSegmentData,
+        organization,
       });
     } catch (err) {
       const error = err as ErrorWithType;

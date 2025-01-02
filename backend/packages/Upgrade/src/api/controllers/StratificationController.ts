@@ -82,7 +82,7 @@ export class StratificationController {
    */
   @Get()
   public async getAllStratification(@Req() request: AppRequest): Promise<FactorStrata[]> {
-    return this.stratificationService.getAllStratification(request.logger);
+    return this.stratificationService.getAllStratification(request.logger, request.user.organization.id);
   }
 
   /**
@@ -157,7 +157,7 @@ export class StratificationController {
     @Req() request: AppRequest,
     @Body({ validate: true }) body: UploadedFilesArrayValidator
   ): Promise<UserStratificationFactor[][]> {
-    return this.stratificationService.insertStratificationFiles(body.files, request.logger);
+    return this.stratificationService.insertStratificationFiles(body.files, request.logger, request.user.organization);
   }
 
   /**

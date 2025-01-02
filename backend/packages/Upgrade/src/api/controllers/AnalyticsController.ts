@@ -320,6 +320,6 @@ export class AnalyticsController {
     request: AppRequest
   ): Promise<string> {
     request.logger.info({ message: `Request received for csv download ${JSON.stringify(params, null, 2)}` });
-    return this.auditService.getCSVData(params.experimentId, params.email, request.logger);
+    return this.auditService.getCSVData(params.experimentId, params.email, request.logger, request.user.organization);
   }
 }

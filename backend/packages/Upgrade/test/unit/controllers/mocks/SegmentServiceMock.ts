@@ -9,7 +9,7 @@ export default class ExcludeServiceMock {
   public getAllSegmentWithStatus(): Promise<[]> {
     return Promise.resolve([]);
   }
-  
+
   public getSegmentById(id: string): Promise<[]> {
     return Promise.resolve([]);
   }

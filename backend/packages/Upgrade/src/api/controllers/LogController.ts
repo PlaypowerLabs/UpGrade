@@ -1,11 +1,12 @@
-import { JsonController, Post, Body, Authorized } from 'routing-controllers';
+import { Organization } from './../models/Organization';
+import { JsonController, Post, Body, Authorized, Req } from 'routing-controllers';
 import { AuditService } from '../services/AuditService';
 import { ExperimentAuditLog } from '../models/ExperimentAuditLog';
 import { ExperimentError } from '../models/ExperimentError';
 import { ErrorService } from '../services/ErrorService';
 import { ErrorLogParamsValidator } from './validators/ErrorLogParamsValidator';
 import { AuditLogParamsValidator } from './validators/AuditLogParamsValidators';
-import { PaginationResponse } from '../../types';
+import { AppRequest, PaginationResponse } from '../../types';
 
 interface ExperimentAuditPaginationInfo extends PaginationResponse {
   nodes: ExperimentAuditLog[];
@@ -61,10 +62,12 @@ export class AuditLogController {
    */
   @Post('audit')
   public async getAuditLogService(
-    @Body({ validate: true }) logParams: AuditLogParamsValidator
+    @Body({ validate: true }) logParams: AuditLogParamsValidator,
+    @Req()
+    request: AppRequest
   ): Promise<ExperimentAuditPaginationInfo> {
     const [nodes, total] = await Promise.all([
-      this.auditService.getAuditLogs(logParams.take, logParams.skip, logParams.filter),
+      this.auditService.getAuditLogs(logParams.take, logParams.skip, request.user.organization.id, logParams.filter),
       this.auditService.getTotalLogs(logParams.filter),
     ]);
     return {

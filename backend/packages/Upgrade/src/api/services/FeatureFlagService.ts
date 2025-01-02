@@ -1,3 +1,4 @@
+import { Organization } from './../models/Organization';
 import { Service } from 'typedi';
 import { FeatureFlag } from '../models/FeatureFlag';
 import { Segment } from '../models/Segment';
@@ -68,9 +69,11 @@ export class FeatureFlagService {
     public segmentService: SegmentService
   ) {}
 
-  public find(logger: UpgradeLogger): Promise<FeatureFlag[]> {
-    logger.info({ message: 'Get all feature flags' });
-    return this.featureFlagRepository.find();
+  public find(logger: UpgradeLogger, organizationId: string): Promise<FeatureFlag[]> {
+    logger.info({ message: 'Get all feature flags filtered by organization' });
+    return this.featureFlagRepository.find({
+      where: { organization: { id: organizationId } },
+    });
   }
 
   public async getKeys(
@@ -138,7 +141,8 @@ export class FeatureFlagService {
   public async create(
     flagDTO: FeatureFlagValidation,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<FeatureFlag> {
     logger.info({ message: 'Create a new feature flag', details: flagDTO });
     const result = await this.featureFlagRepository.validateUniqueKey(flagDTO);
@@ -150,7 +154,7 @@ export class FeatureFlagService {
       throw error;
     }
 
-    return this.addFeatureFlagInDB(this.featureFlagValidatorToFlag(flagDTO), currentUser, logger);
+    return this.addFeatureFlagInDB(this.featureFlagValidatorToFlag(flagDTO), currentUser, logger, organization);
   }
 
   public getTotalCount(): Promise<number> {
@@ -161,55 +165,52 @@ export class FeatureFlagService {
     skip: number,
     take: number,
     logger: UpgradeLogger,
+    organizationId: string, // Add organizationId parameter
     searchParams?: IFeatureFlagSearchParams,
     sortParams?: IFeatureFlagSortParams
   ): Promise<FeatureFlag[]> {
     logger.info({ message: 'Find paginated Feature flags' });
 
-    let queryBuilder = this.featureFlagRepository.createQueryBuilder('feature_flag');
+    // Start query builder with organization filter
+    let queryBuilder = this.featureFlagRepository
+      .createQueryBuilder('feature_flag')
+      .leftJoinAndSelect('feature_flag.organization', 'organization') // Join with organization
+      .where('organization.id = :organizationId', { organizationId }) // Add organization filter
+      .offset(skip)
+      .limit(take);
+
     if (searchParams) {
-      const customSearchString = searchParams.string.split(' ').join(`:*&`);
-      // add search query
+      const customSearchString = searchParams.string.split(' ').join(':* &');
       const postgresSearchString = this.postgresSearchString(searchParams.key);
       queryBuilder = queryBuilder
-        .addSelect(`ts_rank_cd(to_tsvector('english',${postgresSearchString}), to_tsquery(:query))`, 'rank')
+        .addSelect(`ts_rank_cd(to_tsvector('english', ${postgresSearchString}), to_tsquery(:query))`, 'rank')
         .addOrderBy('rank', 'DESC')
         .setParameter('query', `${customSearchString}:*`);
     }
+
     if (sortParams) {
       queryBuilder = queryBuilder.addOrderBy(`feature_flag.${sortParams.key}`, sortParams.sortAs);
     }
 
-    queryBuilder = queryBuilder.offset(skip).limit(take);
-
-    // TODO: the type of queryBuilder.getMany() is Promise<FeatureFlag[]>
-    // However, the above query returns Promise<(Omit<FeatureFlag, 'featureFlagExposures'> & { featureFlagExposures: number })[]>
-    // This can be fixed by using a @VirtualColumn in the FeatureFlag entity, when we are on TypeORM 0.3
     const featureFlagsWithExposures = await queryBuilder
       .loadRelationCountAndMap('feature_flag.featureFlagExposures', 'feature_flag.featureFlagExposures')
       .getMany();
 
-    // Get the feature flag ids
     const featureFlagIds = featureFlagsWithExposures.map(({ id }) => id);
 
-    // Get the relevant segment inclusion documents
     const featureFlagWithInclusionSegments = await this.featureFlagRepository.find({
       select: ['id', 'featureFlagSegmentInclusion'],
       where: { id: In(featureFlagIds) },
       relations: ['featureFlagSegmentInclusion'],
     });
 
-    // Add the inclusion documents to the featureFlagsWithExposures
     return featureFlagsWithExposures.map((featureFlag) => {
-      // Find the matching featureFlagSegmentInclusion for the current item
       const inclusionSegment = featureFlagWithInclusionSegments.find(
         ({ id }) => id === featureFlag.id
       )?.featureFlagSegmentInclusion;
 
-      // Construct the new object with conditional properties
       return {
         ...featureFlag,
-        // Only include featureFlagSegmentInclusion if inclusionSegment is defined and not empty
         ...(inclusionSegment && inclusionSegment.length > 0 ? { featureFlagSegmentInclusion: inclusionSegment } : {}),
       };
     });
@@ -218,7 +219,8 @@ export class FeatureFlagService {
   public async delete(
     featureFlagId: string,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<FeatureFlag | undefined> {
     logger.info({ message: `Delete Feature Flag => ${featureFlagId}` });
     return await this.dataSource.transaction(async (transactionalEntityManager) => {
@@ -256,7 +258,8 @@ export class FeatureFlagService {
         await this.experimentAuditLogRepository.saveRawJson(
           LOG_TYPE.FEATURE_FLAG_DELETED,
           createAuditLogData,
-          currentUser
+          currentUser,
+          organization
         );
         return deletedFlag;
       }
@@ -264,7 +267,12 @@ export class FeatureFlagService {
     });
   }
 
-  public async updateState(flagId: string, status: FEATURE_FLAG_STATUS, currentUser: UserDTO): Promise<FeatureFlag> {
+  public async updateState(
+    flagId: string,
+    status: FEATURE_FLAG_STATUS,
+    currentUser: UserDTO,
+    organization: Organization
+  ): Promise<FeatureFlag> {
     const oldFeatureFlag = await this.findOne(flagId);
     let updatedState: FeatureFlag;
     try {
@@ -283,11 +291,21 @@ export class FeatureFlagService {
       newState: status,
     };
 
-    await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_STATUS_CHANGED, data, currentUser);
+    await this.experimentAuditLogRepository.saveRawJson(
+      LOG_TYPE.FEATURE_FLAG_STATUS_CHANGED,
+      data,
+      currentUser,
+      organization
+    );
     return updatedState;
   }
 
-  public async updateFilterMode(flagId: string, filterMode: FILTER_MODE, currentUser: UserDTO): Promise<FeatureFlag> {
+  public async updateFilterMode(
+    flagId: string,
+    filterMode: FILTER_MODE,
+    currentUser: UserDTO,
+    organization: Organization
+  ): Promise<FeatureFlag> {
     let updatedFilterMode: FeatureFlag;
     try {
       updatedFilterMode = await this.featureFlagRepository.updateFilterMode(flagId, filterMode);
@@ -304,11 +322,16 @@ export class FeatureFlagService {
       filterMode: filterMode,
     };
 
-    await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_UPDATED, data, currentUser);
+    await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_UPDATED, data, currentUser, organization);
     return updatedFilterMode;
   }
 
-  public async exportDesign(id: string, currentUser: UserDTO, logger: UpgradeLogger): Promise<FeatureFlag | null> {
+  public async exportDesign(
+    id: string,
+    currentUser: UserDTO,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<FeatureFlag | null> {
     const featureFlag = await this.findOne(id, logger);
     if (featureFlag) {
       const exportAuditLog: FeatureFlagDeletedData = {
@@ -318,7 +341,8 @@ export class FeatureFlagService {
       await this.experimentAuditLogRepository.saveRawJson(
         LOG_TYPE.FEATURE_FLAG_DESIGN_EXPORTED,
         exportAuditLog,
-        currentUser
+        currentUser,
+        organization
       );
     }
 
@@ -328,7 +352,8 @@ export class FeatureFlagService {
   public async update(
     flagDTO: FeatureFlagValidation,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<FeatureFlag> {
     logger.info({ message: `Update a Feature Flag => ${flagDTO.toString()}` });
     const result = await this.featureFlagRepository.validateUniqueKey(flagDTO);
@@ -340,16 +365,18 @@ export class FeatureFlagService {
       throw error;
     }
     // TODO add entry in log of updating feature flag
-    return this.updateFeatureFlagInDB(this.featureFlagValidatorToFlag(flagDTO), currentUser, logger);
+    return this.updateFeatureFlagInDB(this.featureFlagValidatorToFlag(flagDTO), currentUser, logger, organization);
   }
 
   private async addFeatureFlagInDB(
     flag: FeatureFlag,
     user: UserDTO,
     logger: UpgradeLogger,
+    organization: Organization,
     entityManager?: EntityManager
   ): Promise<FeatureFlag> {
     flag.id = uuid();
+    flag.organization = organization;
     // saving feature flag doc
 
     const executeTransaction = async (manager: EntityManager): Promise<FeatureFlag> => {
@@ -367,7 +394,12 @@ export class FeatureFlagService {
         flagId: featureFlagDoc.id,
         flagName: featureFlagDoc.name,
       };
-      await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_CREATED, createAuditLogData, user);
+      await this.experimentAuditLogRepository.saveRawJson(
+        LOG_TYPE.FEATURE_FLAG_CREATED,
+        createAuditLogData,
+        user,
+        organization
+      );
       return featureFlagDoc;
     };
 
@@ -382,7 +414,12 @@ export class FeatureFlagService {
     }
   }
 
-  private async updateFeatureFlagInDB(flag: FeatureFlag, user: UserDTO, logger: UpgradeLogger): Promise<FeatureFlag> {
+  private async updateFeatureFlagInDB(
+    flag: FeatureFlag,
+    user: UserDTO,
+    logger: UpgradeLogger,
+    organization: Organization
+  ): Promise<FeatureFlag> {
     const {
       featureFlagSegmentExclusion,
       featureFlagSegmentInclusion,
@@ -418,6 +455,7 @@ export class FeatureFlagService {
               includeListIds,
               FEATURE_FLAG_LIST_FILTER_MODE.INCLUSION,
               user,
+              organization,
               transactionalEntityManager
             )
           );
@@ -429,6 +467,7 @@ export class FeatureFlagService {
               excludeListIds,
               FEATURE_FLAG_LIST_FILTER_MODE.EXCLUSION,
               user,
+              organization,
               transactionalEntityManager
             )
           );
@@ -466,7 +505,12 @@ export class FeatureFlagService {
         diff: diffString(newFlagDocClone, oldFlagDocClone),
       };
 
-      await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_UPDATED, updateAuditLog, user);
+      await this.experimentAuditLogRepository.saveRawJson(
+        LOG_TYPE.FEATURE_FLAG_UPDATED,
+        updateAuditLog,
+        user,
+        organization
+      );
 
       return {
         ...featureFlagDoc,
@@ -480,9 +524,10 @@ export class FeatureFlagService {
     segmentId: string,
     filterType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<Segment> {
-    await this.createDeleteListAuditLogs([segmentId], filterType, currentUser);
+    await this.createDeleteListAuditLogs([segmentId], filterType, currentUser, organization);
     return this.segmentService.deleteSegment(segmentId, logger);
   }
 
@@ -490,6 +535,7 @@ export class FeatureFlagService {
     segmentIds: string[],
     filterType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
+    organization: Organization,
     entityManager?: EntityManager
   ): Promise<void> {
     const auditLogPromises = [];
@@ -531,6 +577,7 @@ export class FeatureFlagService {
         type: LOG_TYPE.FEATURE_FLAG_UPDATED,
         data: updateAuditLog,
         user: currentUser,
+        organization: organization,
       });
 
       auditLogPromises.push(savePromise);
@@ -545,6 +592,7 @@ export class FeatureFlagService {
     filterType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
     logger: UpgradeLogger,
+    organization: Organization,
     transactionalEntityManager?: EntityManager
   ): Promise<(FeatureFlagSegmentInclusion | FeatureFlagSegmentExclusion)[]> {
     logger.info({ message: `Add ${filterType} list to feature flag` });
@@ -559,7 +607,9 @@ export class FeatureFlagService {
       let newSegments: Segment[];
       try {
         newSegments = await Promise.all(
-          segmentsToCreate.map((segment) => this.segmentService.upsertSegmentInPipeline(segment, logger, manager))
+          segmentsToCreate.map((segment) =>
+            this.segmentService.upsertSegmentInPipeline(segment, logger, organization, manager)
+          )
         );
       } catch (err) {
         const error = new Error(`Error in creating private segment for feature flag ${filterType} list: ${err}`);
@@ -620,6 +670,7 @@ export class FeatureFlagService {
           LOG_TYPE.FEATURE_FLAG_UPDATED,
           updateAuditLog,
           currentUser,
+          organization,
           transactionalEntityManager
         );
       }
@@ -642,7 +693,8 @@ export class FeatureFlagService {
     listInput: FeatureFlagListValidator,
     filterType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<FeatureFlagSegmentInclusion | FeatureFlagSegmentExclusion> {
     logger.info({ message: `Update ${filterType} list for feature flag` });
     return await this.dataSource.transaction(async (transactionalEntityManager) => {
@@ -683,6 +735,7 @@ export class FeatureFlagService {
         const updatedSegment = await this.segmentService.upsertSegmentInPipeline(
           listInput.segment,
           logger,
+          organization,
           transactionalEntityManager
         );
         existingRecord.segment = updatedSegment;
@@ -747,7 +800,12 @@ export class FeatureFlagService {
         list: listData,
       };
 
-      await this.experimentAuditLogRepository.saveRawJson(LOG_TYPE.FEATURE_FLAG_UPDATED, updateAuditLog, currentUser);
+      await this.experimentAuditLogRepository.saveRawJson(
+        LOG_TYPE.FEATURE_FLAG_UPDATED,
+        updateAuditLog,
+        currentUser,
+        organization
+      );
 
       return existingRecord;
     });
@@ -836,7 +894,8 @@ export class FeatureFlagService {
   public async importFeatureFlags(
     featureFlagFiles: IFeatureFlagFile[],
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<IImportError[]> {
     logger.info({ message: 'Import feature flags' });
     const validatedFlags = await this.validateImportFeatureFlags(featureFlagFiles, logger);
@@ -911,6 +970,7 @@ export class FeatureFlagService {
           this.featureFlagValidatorToFlag(featureFlag),
           currentUser,
           logger,
+          organization,
           transactionalEntityManager
         );
 
@@ -961,6 +1021,7 @@ export class FeatureFlagService {
             FEATURE_FLAG_LIST_FILTER_MODE.INCLUSION,
             currentUser,
             logger,
+            organization,
             transactionalEntityManager
           ),
           this.addList(
@@ -968,6 +1029,7 @@ export class FeatureFlagService {
             FEATURE_FLAG_LIST_FILTER_MODE.EXCLUSION,
             currentUser,
             logger,
+            organization,
             transactionalEntityManager
           ),
         ]);
@@ -1111,7 +1173,8 @@ export class FeatureFlagService {
     featureFlagId: string,
     listType: FEATURE_FLAG_LIST_FILTER_MODE,
     currentUser: UserDTO,
-    logger: UpgradeLogger
+    logger: UpgradeLogger,
+    organization: Organization
   ): Promise<IImportError[]> {
     logger.info({ message: 'Import feature flags' });
     const validatedFlags = await this.validateImportFeatureFlagLists(featureFlagListFiles, featureFlagId, logger);
@@ -1147,7 +1210,7 @@ export class FeatureFlagService {
           listDocs.push(listDoc);
         }
 
-        return await this.addList(listDocs, listType, currentUser, logger, transactionalEntityManager);
+        return await this.addList(listDocs, listType, currentUser, logger, organization, transactionalEntityManager);
       });
 
     logger.info({ message: 'Imported feature flags', details: createdLists });

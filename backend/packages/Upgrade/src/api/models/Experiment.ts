@@ -28,7 +28,6 @@ import { ConditionPayload } from 'src/api/models/ConditionPayload';
 import { Factor } from './Factor';
 import { StratificationFactor } from './StratificationFactor';
 import { Organization } from './Organization';
-import { ExperimentAuditLog } from './ExperimentAuditLog';
 
 export {
   EXPERIMENT_SEARCH_KEY,

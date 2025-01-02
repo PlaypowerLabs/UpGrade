@@ -163,7 +163,7 @@ export class PreviewUserController {
     @Body({ validate: true }) users: PreviewUserValidator,
     @Req() request: AppRequest
   ): Promise<PreviewUser> {
-    return this.previewUserService.create(users, request.logger);
+    return this.previewUserService.create(users, request.logger, request.user.organization);
   }
 
   /**
@@ -201,7 +201,7 @@ export class PreviewUserController {
     @Body({ validate: true }) user: PreviewUserValidator,
     @Req() request: AppRequest
   ): Promise<PreviewUser> {
-    return this.previewUserService.update(id, user, request.logger);
+    return this.previewUserService.update(id, user, request.logger, request.user.organization);
   }
 
   /**
@@ -260,6 +260,6 @@ export class PreviewUserController {
     @Body({ validate: true }) user: PreviewUserValidator,
     @Req() request: AppRequest
   ): Promise<PreviewUser> {
-    return this.previewUserService.upsertExperimentConditionAssignment(user, request.logger);
+    return this.previewUserService.upsertExperimentConditionAssignment(user, request.logger, request.user.organization);
   }
 }

@@ -98,6 +98,7 @@ export class UserController {
         paginatedParams.skip,
         paginatedParams.take,
         request.logger,
+        request.user.organization.id,
         paginatedParams.searchParams,
         paginatedParams.sortParams
       ),
@@ -160,7 +161,7 @@ export class UserController {
    */
   @Post()
   public create(@Body({ validate: true }) user: UserDTO, @Req() request: AppRequest): Promise<User> {
-    return this.userService.upsertUser(user, request.logger);
+    return this.userService.upsertUser(user, request.logger, request.user.organization);
   }
 
   /**

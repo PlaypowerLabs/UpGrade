@@ -13,6 +13,7 @@ import { ExperimentAuditLogRepository } from '../repositories/ExperimentAuditLog
 import { DataSource, EntityManager } from 'typeorm';
 import { User } from '../models/User';
 import { UpgradeLogger } from '../../lib/logger/UpgradeLogger';
+import { Organization } from '../models/Organization';
 
 @Service()
 export class ScheduledJobService {
@@ -24,7 +25,7 @@ export class ScheduledJobService {
     private awsService: AWSService
   ) {}
 
-  public async startExperiment(id: string, logger: UpgradeLogger): Promise<any> {
+  public async startExperiment(id: string, logger: UpgradeLogger, organization: Organization): Promise<any> {
     return await this.dataSource.transaction(async (transactionalEntityManager) => {
       try {
         const scheduledJobRepository = transactionalEntityManager.getRepository(ScheduledJob);
@@ -56,6 +57,7 @@ export class ScheduledJobService {
               EXPERIMENT_STATE.ENROLLING,
               systemUser,
               logger,
+              organization,
               null,
               transactionalEntityManager
             );
@@ -71,7 +73,7 @@ export class ScheduledJobService {
     });
   }
 
-  public async endExperiment(id: string, logger: UpgradeLogger): Promise<any> {
+  public async endExperiment(id: string, logger: UpgradeLogger, organization: Organization): Promise<any> {
     return await this.dataSource.transaction(async (transactionalEntityManager) => {
       try {
         const scheduledJobRepository = transactionalEntityManager.getRepository(ScheduledJob);
@@ -102,6 +104,7 @@ export class ScheduledJobService {
             EXPERIMENT_STATE.ENROLLMENT_COMPLETE,
             systemUser,
             logger,
+            organization,
             null,
             transactionalEntityManager
           );

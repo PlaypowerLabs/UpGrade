@@ -18,8 +18,14 @@ export class AuditService {
     return this.experimentAuditLogRepository.count();
   }
 
-  public getAuditLogs(limit: number, offset: number, filter?: LOG_TYPE): Promise<ExperimentAuditLog[]> {
-    return this.experimentAuditLogRepository.paginatedFind(limit, offset, filter);
+  public getAuditLogs(
+    limit: number,
+    offset: number,
+    organizationId: string,
+    filter?: LOG_TYPE
+  ): Promise<ExperimentAuditLog[]> {
+    const auditLogs = this.experimentAuditLogRepository.paginatedFind(limit, offset, filter, organizationId);
+    return auditLogs;
   }
 
   public getAuditLogByType(type: LOG_TYPE): Promise<ExperimentAuditLog[]> {

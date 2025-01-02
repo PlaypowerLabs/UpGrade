@@ -28,12 +28,12 @@ import { ClientLibMiddleware } from '../middlewares/ClientLibMiddleware';
 import { LogValidatorv6 } from './validators/LogValidator';
 import { MetricService } from '../services/MetricService';
 import { ExperimentUserAliasesValidatorv6 } from './validators/ExperimentUserAliasesValidator';
-import { AppRequest } from '../../types';
 import { MonitoredDecisionPointLog } from '../models/MonitoredDecisionPointLog';
 import { MarkExperimentValidatorv6 } from './validators/MarkExperimentValidator.v6';
 import { Log } from '../models/Log';
 import { ExperimentUserValidatorv6 } from './validators/ExperimentUserValidator';
 import { UserCheckMiddleware } from '../middlewares/UserCheckMiddleware';
+import { ClientAppRequest } from 'src/types';
 
 interface IMonitoredDecisionPoint {
   id: string;
@@ -170,7 +170,7 @@ export class ExperimentClientController {
   @Post('init')
   public async init(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: { whitelist: true, forbidNonWhitelisted: true } })
     experimentUser: ExperimentUserValidatorv6
   ): Promise<Pick<ExperimentUser, 'id' | 'group' | 'workingGroup'>> {
@@ -257,7 +257,7 @@ export class ExperimentClientController {
   @Patch('groupmembership')
   public async setGroupMemberShip(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     experimentUser: ExperimentUserValidatorv6
   ): Promise<IGroupMembership> {
@@ -323,7 +323,7 @@ export class ExperimentClientController {
   @Patch('workinggroup')
   public async setWorkingGroup(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     workingGroupParams: UpdateWorkingGroupValidatorv6
   ): Promise<IWorkingGroup> {
@@ -424,7 +424,7 @@ export class ExperimentClientController {
   @Post('mark')
   public async markExperimentPoint(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     experiment: MarkExperimentValidatorv6
   ): Promise<IMonitoredDecisionPoint> {
@@ -522,7 +522,7 @@ export class ExperimentClientController {
   @Post('assign')
   public async getAllExperimentConditions(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     experiment: ExperimentAssignmentValidatorv6
   ): Promise<IExperimentAssignmentv5[]> {
@@ -648,7 +648,7 @@ export class ExperimentClientController {
   @Post('log')
   public async log(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     logData: LogValidatorv6
   ): Promise<Omit<Log, 'createdAt' | 'updatedAt' | 'versionNumber'>[]> {
@@ -697,7 +697,7 @@ export class ExperimentClientController {
    */
   @Post('featureflag')
   public async getAllFlags(
-    @Req() request: AppRequest,
+    @Req() request: ClientAppRequest,
     @Body({ validate: true })
     experiment: ExperimentAssignmentValidatorv6
   ): Promise<string[]> {
@@ -759,7 +759,7 @@ export class ExperimentClientController {
   @Patch('useraliases')
   public async setUserAliases(
     @Req()
-    request: AppRequest,
+    request: ClientAppRequest,
     @Body({ validate: true })
     user: ExperimentUserAliasesValidatorv6
   ): Promise<IUserAliases> {
@@ -788,7 +788,7 @@ export class ExperimentClientController {
    */
   @Authorized()
   @Delete('clearDB')
-  public async clearDB(@Req() request: AppRequest): Promise<string> {
+  public async clearDB(@Req() request: ClientAppRequest): Promise<string> {
     return this.experimentUserService.clearDB(request.logger);
   }
 }

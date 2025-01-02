@@ -1,22 +1,31 @@
 import { ExperimentAuditLog } from '../models/ExperimentAuditLog';
-import { Repository, EntityManager } from 'typeorm';
+import { Repository, EntityManager, Brackets } from 'typeorm';
 import { EntityRepository } from '../../typeorm-typedi-extensions';
 import { LOG_TYPE } from 'upgrade_types';
 import { UserDTO } from '../DTO/UserDTO';
 import repositoryError from './utils/repositoryError';
+import { Organization } from '../models/Organization';
 
 @EntityRepository(ExperimentAuditLog)
 export class ExperimentAuditLogRepository extends Repository<ExperimentAuditLog> {
-  public async paginatedFind(limit: number, offset: number, filter: LOG_TYPE): Promise<ExperimentAuditLog[]> {
+  public async paginatedFind(
+    limit: number,
+    offset: number,
+    filter: LOG_TYPE,
+    organizationId: string
+  ): Promise<ExperimentAuditLog[]> {
     let queryBuilder = this.createQueryBuilder('audit')
+      .leftJoinAndSelect('audit.user', 'user')
+      .leftJoinAndSelect('audit.organization', 'organization')
+      .where('organization.id = :organizationId', { organizationId })
       .offset(offset)
       .limit(limit)
-      .leftJoinAndSelect('audit.user', 'user')
       .orderBy('audit.createdAt', 'DESC');
 
     if (filter) {
-      queryBuilder = queryBuilder.where('audit.type = :filter', { filter });
+      queryBuilder = queryBuilder.andWhere('audit.type = :filter', { filter });
     }
+
     return queryBuilder.getMany().catch((error: any) => {
       const errorMsg = repositoryError('ExperimentAuditLogRepository', 'paginatedFind', { limit, offset }, error);
       throw errorMsg;
@@ -37,18 +46,25 @@ export class ExperimentAuditLogRepository extends Repository<ExperimentAuditLog>
     type: LOG_TYPE,
     data: any,
     user: UserDTO,
+    organization: Organization,
     entityManger?: EntityManager
   ): Promise<ExperimentAuditLog> {
     const that = entityManger || this;
+
     const result = await that
       .createQueryBuilder()
       .insert()
       .into(ExperimentAuditLog)
-      .values({ type, data, user })
+      .values({ type, data, user, organization })
       .returning('*')
       .execute()
       .catch((error: any) => {
-        const errorMsg = repositoryError('ExperimentAuditLogRepository', 'saveRawJson', { type, data, user }, error);
+        const errorMsg = repositoryError(
+          'ExperimentAuditLogRepository',
+          'saveRawJson',
+          { type, data, user, organization },
+          error
+        );
         throw errorMsg;
       });
 

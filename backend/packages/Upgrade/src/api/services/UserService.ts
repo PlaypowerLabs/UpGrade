@@ -1,3 +1,4 @@
+import { Organization } from './../models/Organization';
 import { Service } from 'typedi';
 import { InjectRepository } from '../../typeorm-typedi-extensions';
 import { UserRepository } from '../repositories/UserRepository';
@@ -16,6 +17,7 @@ import { ErrorWithType } from '../errors/ErrorWithType';
 import { Emails } from '../../templates/email';
 import { UserDTO } from '../DTO/UserDTO';
 import { ExperimentAuditLog } from '../models/ExperimentAuditLog';
+import { OrganizationService } from './OrganizationService';
 
 @Service()
 export class UserService {
@@ -23,12 +25,13 @@ export class UserService {
   constructor(
     @InjectRepository()
     private userRepository: UserRepository,
-    public awsService: AWSService
+    public awsService: AWSService,
+    public organizationService: OrganizationService
   ) {
     this.emails = new Emails();
   }
 
-  public async upsertUser(userDTO: UserDTO, logger: UpgradeLogger): Promise<User> {
+  public async upsertUser(userDTO: UserDTO, logger: UpgradeLogger, organization: Organization): Promise<User> {
     const user = new User();
     user.email = userDTO.email;
     user.firstName = userDTO.firstName;
@@ -36,6 +39,7 @@ export class UserService {
     user.role = userDTO.role;
     user.imageUrl = userDTO.imageUrl;
     user.localTimeZone = userDTO.localTimeZone;
+    user.organization = null;
     user.auditLogs = userDTO.auditLogs?.map((auditLogDTO) => {
       const auditLog = new ExperimentAuditLog();
       auditLog.data = auditLogDTO.data;
@@ -44,9 +48,20 @@ export class UserService {
       return auditLog;
     });
 
+    const isUserExists = await this.userRepository.find({
+      where: { email: user.email },
+      relations: ['organization'],
+    });
+    if (organization) {
+      user.organization = organization;
+    } else if (isUserExists[0]?.organization) {
+      user.organization = isUserExists[0]?.organization;
+    } else {
+      user.organization = await this.organizationService.addOrganization(user.email, logger);
+    }
+
     logger.info({ message: `Upsert a new user => ${JSON.stringify(user, undefined, 2)}` });
 
-    const isUserExists = await this.userRepository.find({ where: { email: user.email } });
     const response = await this.userRepository.upsertUser(user);
     if (!isUserExists && response) {
       this.sendWelcomeEmail(user.email);
@@ -75,18 +90,25 @@ export class UserService {
     skip: number,
     take: number,
     logger: UpgradeLogger,
+    organizationId: string,
     searchParams?: UserSearchParamsValidator,
     sortParams?: UserSortParamsValidator
   ): Promise<any[]> {
     logger.info({ message: `Find paginated Users` });
-    let queryBuilder = this.userRepository.createQueryBuilder('users');
+
+    // Start query builder with organization join
+    let queryBuilder = this.userRepository
+      .createQueryBuilder('users')
+      .leftJoinAndSelect('users.organization', 'organization') // Join organization
+      .where('organization.id = :organizationId', { organizationId }) // Filter by organization ID
+      .offset(skip)
+      .limit(take);
 
     if (searchParams) {
       const customSearchString = searchParams.string.split(' ').join(`:*&`);
-      // add search query
       const postgresSearchString = this.postgresSearchString(searchParams.key);
       queryBuilder = queryBuilder
-        .addSelect(`ts_rank_cd(to_tsvector('english',${postgresSearchString}), to_tsquery(:query))`, 'rank')
+        .addSelect(`ts_rank_cd(to_tsvector('english', ${postgresSearchString}), to_tsquery(:query))`, 'rank')
         .addOrderBy('rank', 'DESC')
         .setParameter('query', `${customSearchString}:*`);
     }
@@ -94,8 +116,10 @@ export class UserService {
     if (sortParams) {
       queryBuilder = queryBuilder.addOrderBy(`users.${sortParams.key}`, sortParams.sortAs);
     }
+
+    // Exclude system email
     const systemEmail = systemUserDoc.email;
-    queryBuilder = queryBuilder.where('users.email != :email', { email: systemEmail }).offset(skip).limit(take);
+    queryBuilder = queryBuilder.andWhere('users.email != :email', { email: systemEmail });
 
     return queryBuilder.getMany();
   }

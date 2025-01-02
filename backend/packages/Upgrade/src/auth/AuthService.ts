@@ -83,7 +83,7 @@ export class AuthService {
       return null;
     }
     // add local cache for validating user for each request
-    const document = await this.userRepository.find({ where: { email } });
+    const document = await this.userRepository.find({ where: { email }, relations: ['organization'] });
     request.logger.child({ client_session_id: session_id, user: document });
     request.logger.info({ message: 'User document fetched' });
     if (document.length === 0) {

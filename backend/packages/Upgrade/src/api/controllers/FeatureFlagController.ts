@@ -179,7 +179,7 @@ export class FeatureFlagsController {
 
   @Get()
   public find(@Req() request: AppRequest): Promise<FeatureFlag[]> {
-    return this.featureFlagService.find(request.logger);
+    return this.featureFlagService.find(request.logger, request.user.organization.id);
   }
 
   /**
@@ -276,6 +276,7 @@ export class FeatureFlagsController {
         paginatedParams.skip,
         paginatedParams.take,
         request.logger,
+        request.user.organization.id,
         paginatedParams.searchParams,
         paginatedParams.sortParams
       ),
@@ -317,7 +318,7 @@ export class FeatureFlagsController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<FeatureFlag> {
-    return this.featureFlagService.create(flag, currentUser, request.logger);
+    return this.featureFlagService.create(flag, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -354,9 +355,10 @@ export class FeatureFlagsController {
   public async updateState(
     @Body({ validate: true })
     flag: FeatureFlagStatusUpdateValidator,
+    @Req() request: AppRequest,
     @CurrentUser() currentUser: UserDTO
   ): Promise<FeatureFlag> {
-    return this.featureFlagService.updateState(flag.flagId, flag.status, currentUser);
+    return this.featureFlagService.updateState(flag.flagId, flag.status, currentUser, request.user.organization);
   }
 
   /**
@@ -393,9 +395,15 @@ export class FeatureFlagsController {
   public async updateFilterMode(
     @Body({ validate: true })
     flag: FeatureFlagFilterModeUpdateValidator,
+    @Req() request: AppRequest,
     @CurrentUser() currentUser: UserDTO
   ): Promise<FeatureFlag> {
-    return this.featureFlagService.updateFilterMode(flag.flagId, flag.filterMode, currentUser);
+    return this.featureFlagService.updateFilterMode(
+      flag.flagId,
+      flag.filterMode,
+      currentUser,
+      request.user.organization
+    );
   }
 
   /**
@@ -425,7 +433,7 @@ export class FeatureFlagsController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<FeatureFlag | undefined> {
-    return this.featureFlagService.delete(id, currentUser, request.logger);
+    return this.featureFlagService.delete(id, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -465,7 +473,7 @@ export class FeatureFlagsController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<FeatureFlag> {
-    return this.featureFlagService.update({ ...flag, id }, currentUser, request.logger);
+    return this.featureFlagService.update({ ...flag, id }, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -501,7 +509,8 @@ export class FeatureFlagsController {
         [inclusionList],
         FEATURE_FLAG_LIST_FILTER_MODE.INCLUSION,
         currentUser,
-        request.logger
+        request.logger,
+        request.user.organization
       )
     )[0];
   }
@@ -539,7 +548,8 @@ export class FeatureFlagsController {
         [exclusionList],
         FEATURE_FLAG_LIST_FILTER_MODE.EXCLUSION,
         currentUser,
-        request.logger
+        request.logger,
+        request.user.organization
       )
     )[0];
   }
@@ -590,7 +600,8 @@ export class FeatureFlagsController {
       exclusionList,
       FEATURE_FLAG_LIST_FILTER_MODE.EXCLUSION,
       currentUser,
-      request.logger
+      request.logger,
+      request.user.organization
     );
   }
 
@@ -640,7 +651,8 @@ export class FeatureFlagsController {
       inclusionList,
       FEATURE_FLAG_LIST_FILTER_MODE.INCLUSION,
       currentUser,
-      request.logger
+      request.logger,
+      request.user.organization
     );
   }
 
@@ -672,7 +684,13 @@ export class FeatureFlagsController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<Segment> {
-    return this.featureFlagService.deleteList(id, FEATURE_FLAG_LIST_FILTER_MODE.INCLUSION, currentUser, request.logger);
+    return this.featureFlagService.deleteList(
+      id,
+      FEATURE_FLAG_LIST_FILTER_MODE.INCLUSION,
+      currentUser,
+      request.logger,
+      request.user.organization
+    );
   }
 
   /**
@@ -703,7 +721,13 @@ export class FeatureFlagsController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<Segment> {
-    return this.featureFlagService.deleteList(id, FEATURE_FLAG_LIST_FILTER_MODE.EXCLUSION, currentUser, request.logger);
+    return this.featureFlagService.deleteList(
+      id,
+      FEATURE_FLAG_LIST_FILTER_MODE.EXCLUSION,
+      currentUser,
+      request.logger,
+      request.user.organization
+    );
   }
 
   /**
@@ -806,7 +830,12 @@ export class FeatureFlagsController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<IImportError[]> {
-    return await this.featureFlagService.importFeatureFlags(featureFlags.files, currentUser, request.logger);
+    return await this.featureFlagService.importFeatureFlags(
+      featureFlags.files,
+      currentUser,
+      request.logger,
+      request.user.organization
+    );
   }
   /**
    * @swagger
@@ -843,7 +872,12 @@ export class FeatureFlagsController {
     @Req() request: AppRequest,
     @Res() response: Response
   ): Promise<Response> {
-    const featureFlag = await this.featureFlagService.exportDesign(id, currentUser, request.logger);
+    const featureFlag = await this.featureFlagService.exportDesign(
+      id,
+      currentUser,
+      request.logger,
+      request.user.organization
+    );
     if (featureFlag) {
       // download JSON file with appropriate headers to response body;
       response.setHeader('Content-Disposition', `attachment; filename="${featureFlag.name}.json"`);
@@ -937,7 +971,8 @@ export class FeatureFlagsController {
       lists.flagId,
       lists.listType,
       currentUser,
-      request.logger
+      request.logger,
+      request.user.organization
     );
   }
 

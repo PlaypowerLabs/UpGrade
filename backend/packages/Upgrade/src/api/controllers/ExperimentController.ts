@@ -739,6 +739,7 @@ export class ExperimentController {
         paginatedParams.skip,
         paginatedParams.take,
         request.logger,
+        request.user.organization.id,
         paginatedParams.searchParams,
         paginatedParams.sortParams
       ),
@@ -951,7 +952,7 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<Experiment> {
     request.logger.child({ user: currentUser });
-    return this.experimentService.create(experiment, currentUser, request.logger);
+    return this.experimentService.create(experiment, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -992,7 +993,12 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<Experiment[]> {
     request.logger.child({ user: currentUser });
-    return this.experimentService.createMultipleExperiments(experiment, currentUser, request.logger);
+    return this.experimentService.createMultipleExperiments(
+      experiment,
+      currentUser,
+      request.logger,
+      request.user.organization
+    );
   }
 
   /**
@@ -1033,7 +1039,7 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<Experiment | undefined> {
     request.logger.child({ user: currentUser });
-    const experiment = await this.experimentService.delete(id, currentUser, request.logger);
+    const experiment = await this.experimentService.delete(id, currentUser, request.user.organization, request.logger);
 
     if (!experiment) {
       throw new NotFoundException('Experiment not found.');
@@ -1085,6 +1091,7 @@ export class ExperimentController {
       experiment.state,
       currentUser,
       request.logger,
+      request.user.organization,
       experiment.scheduleDate
     );
   }
@@ -1133,7 +1140,7 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<ExperimentDTO> {
     request.logger.child({ user: currentUser });
-    return this.experimentService.update({ ...experiment, id }, currentUser, request.logger);
+    return this.experimentService.update({ ...experiment, id }, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -1235,7 +1242,7 @@ export class ExperimentController {
     @CurrentUser() currentUser: UserDTO,
     @Req() request: AppRequest
   ): Promise<ValidatedExperimentError[]> {
-    return this.experimentService.importExperiment(experiments, currentUser, request.logger);
+    return this.experimentService.importExperiment(experiments, currentUser, request.logger, request.user.organization);
   }
 
   /**
@@ -1286,7 +1293,12 @@ export class ExperimentController {
     @Req() request: AppRequest
   ): Promise<Experiment[]> {
     const experimentIds = params.ids;
-    return this.experimentService.exportExperiment(currentUser, request.logger, experimentIds);
+    return this.experimentService.exportExperiment(
+      currentUser,
+      request.logger,
+      request.user.organization,
+      experimentIds
+    );
   }
 
   /**
@@ -1317,7 +1329,7 @@ export class ExperimentController {
    */
   @Get('/export/all')
   public exportAllExperiment(@CurrentUser() currentUser: UserDTO, @Req() request: AppRequest): Promise<Experiment[]> {
-    return this.experimentService.exportExperiment(currentUser, request.logger);
+    return this.experimentService.exportExperiment(currentUser, request.logger, request.user.organization);
   }
 
   /**
